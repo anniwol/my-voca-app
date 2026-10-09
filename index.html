@@ -1010,11 +1010,12 @@
       currentStudyWord = selectedWord;
       saveData();
 
-      const weight = currentStudyWord.weight || 0;
+      const weight = currentStudyWord.weight || 1;
+      const displayWeight = Math.max(0, rawWeight - 1);
       const incorrect = currentStudyWord.incorrect || 0;
-      const rate = weight === 0 ? 0 : Math.round((incorrect / weight) * 100);
+      const rate = displayWeight === 0 ? 0 : Math.round((incorrect / displayWeight) * 100);
 
-      document.getElementById('studyStatsTop').textContent = `오답률 ${rate}% (오답 ${incorrect}회 / 출제 ${weight}회)`;
+      document.getElementById('studyStatsTop').textContent = `오답률 ${rate}% (오답 ${incorrect}회 / 출제 ${displayWeight}회)`;
       document.getElementById('studyWord').textContent = currentStudyWord.eng;
       document.getElementById('studyMeaning').textContent = currentStudyWord.kor;
       document.getElementById('studyMeaning').classList.remove('visible');
