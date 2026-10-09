@@ -208,7 +208,7 @@
       cursor: pointer;
     }
 
-    /* 틀린 단어 모음 전용 연한 파란색 톤온톤 스타일 (라이트 모드) */
+    /* 틀린 단어 모음 전용 연한 파란색 톤온톤 스타일 */
     .space-checkbox-item.default-incorrect-space {
       background-color: #e8f1ff;
       border: 1px solid #b6d4fe;
@@ -216,7 +216,6 @@
       font-weight: 600;
     }
 
-    /* 다크 모드 대응 */
     [data-theme="dark"] .space-checkbox-item.default-incorrect-space {
       background-color: #1b2a4a;
       border: 1px solid #2c4375;
@@ -1010,7 +1009,8 @@
       currentStudyWord = selectedWord;
       saveData();
 
-      const weight = currentStudyWord.weight || 1;
+      // 이번 출제분(-1)을 제외한 이전 누적 출제 횟수 계산
+      const rawWeight = currentStudyWord.weight || 1;
       const displayWeight = Math.max(0, rawWeight - 1);
       const incorrect = currentStudyWord.incorrect || 0;
       const rate = displayWeight === 0 ? 0 : Math.round((incorrect / displayWeight) * 100);
@@ -1036,11 +1036,13 @@
       nextPlannedWord = currentStudyWord;
       currentStudyWord = word;
 
-      const weight = currentStudyWord.weight || 0;
+      // 이전 단어로 되돌아갔을 때도 이번 출제분을 제외한 이전 누적 출제 횟수로 상단 통계 표시
+      const rawWeight = currentStudyWord.weight || 1;
+      const displayWeight = Math.max(0, rawWeight - 1);
       const incorrect = currentStudyWord.incorrect || 0;
-      const rate = weight === 0 ? 0 : Math.round((incorrect / weight) * 100);
+      const rate = displayWeight === 0 ? 0 : Math.round((incorrect / displayWeight) * 100);
 
-      document.getElementById('studyStatsTop').textContent = `오답률 ${rate}% (오답 ${incorrect}회 / 출제 ${weight}회)`;
+      document.getElementById('studyStatsTop').textContent = `오답률 ${rate}% (오답 ${incorrect}회 / 출제 ${displayWeight}회)`;
       document.getElementById('studyWord').textContent = currentStudyWord.eng;
       document.getElementById('studyMeaning').textContent = currentStudyWord.kor;
 
