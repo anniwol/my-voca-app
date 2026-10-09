@@ -208,12 +208,19 @@
       cursor: pointer;
     }
 
-    /* 틀린 단어 모음 전용 파란색 계열 강조 CSS */
+    /* 틀린 단어 모음 전용 연한 파란색 톤온톤 스타일 (라이트 모드) */
     .space-checkbox-item.default-incorrect-space {
-      background-color: rgba(13, 110, 253, 0.08);
-      border: 1.5px solid var(--accent-color);
-      color: var(--accent-color);
+      background-color: #e8f1ff;
+      border: 1px solid #b6d4fe;
+      color: var(--text-color);
       font-weight: 600;
+    }
+
+    /* 다크 모드 대응 */
+    [data-theme="dark"] .space-checkbox-item.default-incorrect-space {
+      background-color: #1b2a4a;
+      border: 1px solid #2c4375;
+      color: var(--text-color);
     }
 
     .space-checkbox-item input {
@@ -788,7 +795,7 @@
     let activeStudySpaces = [];
     let currentStudyWord = null;
     let previousStudyState = null;
-    let nextPlannedWord = null; // 뒤로가기 후 다시 앞으로 돌아갈 때 기억해 둘 미래 단어
+    let nextPlannedWord = null;
     let isMeaningVisible = false;
     let editingId = null;
 
@@ -886,7 +893,6 @@
         const count = vocab.filter(v => v.space === sp).length;
         const label = document.createElement('label');
         
-        // 파란색 포인트 스타일링 적용
         const isDefault = sp === DEFAULT_SPACE;
         label.className = `space-checkbox-item ${isDefault ? 'default-incorrect-space' : ''}`;
         
@@ -980,7 +986,6 @@
 
       let selectedWord = null;
 
-      // 뒤로 돌아갔다가 다시 진행하는 경우 보관해둔 미리 예정된 단어(A단어) 사용
       if (nextPlannedWord) {
         selectedWord = nextPlannedWord;
         nextPlannedWord = null;
@@ -1021,14 +1026,12 @@
       isMeaningVisible = false;
     }
 
-    // [이전 단어로 복원]
     function goPreviousStudyWord() {
       if (!previousStudyState) return;
 
       const word = vocab.find(v => v.id === previousStudyState.wordId);
       if (!word) return;
 
-      // 다시 앞으로 갈 때 나올 단어로 저장해둠
       nextPlannedWord = currentStudyWord;
       currentStudyWord = word;
 
@@ -1040,7 +1043,6 @@
       document.getElementById('studyWord').textContent = currentStudyWord.eng;
       document.getElementById('studyMeaning').textContent = currentStudyWord.kor;
 
-      // 뜻 및 오답 체크박스 원래 상태로 복원
       document.getElementById('studyMeaning').classList.add('visible');
       document.getElementById('chkIncorrect').checked = previousStudyState.wasChecked;
       document.getElementById('incorrectBox').classList.add('visible');
@@ -1051,7 +1053,6 @@
       previousStudyState = null;
     }
 
-    // 학습 화면 클릭 이벤트 처리
     document.getElementById('studyArea').addEventListener('click', (e) => {
       if (!currentStudyWord) return;
 
@@ -1311,7 +1312,6 @@
       const vocabList = document.getElementById('vocabList');
       vocabList.innerHTML = '';
 
-      // 1. 최상단 폴더 카드 추가 (오답 단어 카운트)
       const incorrectWords = vocab.filter(v => v.space !== DEFAULT_SPACE && (v.incorrect || 0) > 0);
       const folderDiv = document.createElement('div');
       folderDiv.className = 'folder-card';
@@ -1322,7 +1322,6 @@
       `;
       vocabList.appendChild(folderDiv);
 
-      // 2. 일반 단어 목록 (틀린 단어 모음 전용 공간 데이터 제외)
       const userVocab = vocab.filter(v => v.space !== DEFAULT_SPACE);
       const sorted = [...userVocab].sort((a, b) => a.eng.localeCompare(b.eng, 'en', { sensitivity: 'base' }));
 
@@ -1362,7 +1361,6 @@
       });
     }
 
-    // 틀린 단어 전용 모달 오픈
     function openIncorrectModal() {
       const modalList = document.getElementById('incorrectModalList');
       modalList.innerHTML = '';
