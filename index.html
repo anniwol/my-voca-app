@@ -907,6 +907,7 @@
         return;
       }
 
+      currentStudyWord = null;
       previousStudyWord = null;
       navTo('study-exec');
       headerTitle.textContent = '랜덤 학습';
@@ -914,7 +915,10 @@
     }
 
     function nextStudyWord() {
-      previousStudyWord = currentStudyWord;
+      // 다음 단어로 넘어갈 때만 직전 단어를 보관
+      if (currentStudyWord) {
+        previousStudyWord = currentStudyWord;
+      }
 
       const targetWords = vocab.filter(v => activeStudySpaces.includes(v.space));
 
@@ -957,7 +961,7 @@
 
       document.getElementById('chkIncorrect').checked = false;
       document.getElementById('incorrectBox').classList.remove('visible');
-      document.getElementById('studyHint').textContent = "화면을 터치하면 뜻이 공개됩니다";
+      document.getElementById('studyHint').textContent = previousStudyWord ? "상단 터치: 이전 단어 | 화면 터치: 뜻 공개" : "화면을 터치하면 뜻이 공개됩니다";
 
       isMeaningVisible = false;
     }
@@ -966,7 +970,7 @@
       if (!previousStudyWord) return;
 
       currentStudyWord = previousStudyWord;
-      previousStudyWord = null;
+      previousStudyWord = null; // 이전 단어 복원 후 소비(연속 2회 방지)
 
       const weight = currentStudyWord.weight || 0;
       const incorrect = currentStudyWord.incorrect || 0;
@@ -984,12 +988,15 @@
       isMeaningVisible = false;
     }
 
+    // 학습 화면 클릭 이벤트 처리 (영역 판별 수정)
     document.getElementById('studyArea').addEventListener('click', (e) => {
       if (!currentStudyWord) return;
 
-      const clickY = e.clientY;
-      const screenHeight = window.innerHeight;
-      if (clickY < screenHeight * 0.25 && previousStudyWord && !isMeaningVisible) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clickY = e.clientY - rect.top; // 카드 내부에서의 relative Y 좌표
+
+      // 상단 30% 영역을 클릭했고, 뜻이 열리기 전이며, 이전 단어가 있는 경우
+      if (clickY < rect.height * 0.30 && previousStudyWord && !isMeaningVisible) {
         goPreviousStudyWord();
         return;
       }
@@ -1119,7 +1126,6 @@
       }
     }
 
-    // [공간 삭제 시 오답 모음 단어도 함께 연동 삭제]
     function deleteSpace() {
       const editSelect = document.getElementById('editSpaceSelect');
       const targetSpace = editSelect.value;
@@ -1130,15 +1136,12 @@
       }
 
       if (confirm(`${targetSpace} 삭제하시겠습니까?`)) {
-        // 1. 삭제하려는 공간에 속한 단어들의 ID 수집
         const targetWordIds = vocab
           .filter(v => v.space === targetSpace)
           .map(v => v.id);
 
-        // 2. 공간 목록에서 삭제
         spaces = spaces.filter(s => s !== targetSpace);
 
-        // 3. 단어 목록에서 해당 공간 단어 및 틀린 단어 모음에 있던 복사본까지 연쇄 삭제
         vocab = vocab.filter(v => {
           if (v.space === targetSpace) return false;
           if (v.space === DEFAULT_SPACE && targetWordIds.includes(v.originalId)) return false;
@@ -1304,7 +1307,6 @@
       }
     }
 
-    // [단어 수정 모달에서 단어 삭제 시 오답 모음 단어도 연동 삭제]
     function deleteCurrentWord() {
       if (confirm('이 단어를 삭제하시겠습니까?')) {
         const targetId = editingId;
