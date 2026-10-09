@@ -739,6 +739,7 @@
 
     let activeStudySpaces = [];
     let currentStudyWord = null;
+    let previousStudyWord = null; // 바로 전 단어 저장 변수 추가
     let isMeaningVisible = false;
     let editingId = null;
 
@@ -853,7 +854,6 @@
       updateStudyButtonState();
     }
 
-    // 조건 수정: 선택된 공간 중 '틀린 단어 모음'이 아닌 일반 공간이 최소 1개 이상 존재해야 [누적 정보 초기화] 버튼 활성화
     function updateStudyButtonState() {
       const checkedBoxes = document.querySelectorAll('#studySpaceList input[type="checkbox"]:checked');
       const selectedSpaces = Array.from(checkedBoxes).map(cb => cb.value);
@@ -907,12 +907,15 @@
         return;
       }
 
+      previousStudyWord = null; // 학습 시작 시 이전 단어 초기화
       navTo('study-exec');
       headerTitle.textContent = '랜덤 학습';
       nextStudyWord();
     }
 
     function nextStudyWord() {
+      previousStudyWord = currentStudyWord; // 이전 단어로 현재 단어 저장
+
       const targetWords = vocab.filter(v => activeStudySpaces.includes(v.space));
 
       if (targetWords.length === 0) {
@@ -959,8 +962,38 @@
       isMeaningVisible = false;
     }
 
-    document.getElementById('studyArea').addEventListener('click', () => {
+    function goPreviousStudyWord() {
+      if (!previousStudyWord) return;
+
+      currentStudyWord = previousStudyWord;
+      previousStudyWord = null; // 이전 단어 기록 1회 소비 후 초기화
+
+      const weight = currentStudyWord.weight || 0;
+      const incorrect = currentStudyWord.incorrect || 0;
+      const rate = weight === 0 ? 0 : Math.round((incorrect / weight) * 100);
+
+      document.getElementById('studyStatsTop').textContent = `오답률 ${rate}% (오답 ${incorrect}회 / 출제 ${weight}회)`;
+      document.getElementById('studyWord').textContent = currentStudyWord.eng;
+      document.getElementById('studyMeaning').textContent = currentStudyWord.kor;
+      document.getElementById('studyMeaning').classList.remove('visible');
+
+      document.getElementById('chkIncorrect').checked = false;
+      document.getElementById('incorrectBox').classList.remove('visible');
+      document.getElementById('studyHint').textContent = "화면을 터치하면 뜻이 공개됩니다";
+
+      isMeaningVisible = false;
+    }
+
+    document.getElementById('studyArea').addEventListener('click', (e) => {
       if (!currentStudyWord) return;
+
+      // 화면 상단 25% 터치 시 + 뜻이 아직 안 열렸고 + 이전 단어가 존재하면 직전 단어로 복원
+      const clickY = e.clientY;
+      const screenHeight = window.innerHeight;
+      if (clickY < screenHeight * 0.25 && previousStudyWord && !isMeaningVisible) {
+        goPreviousStudyWord();
+        return;
+      }
 
       if (!isMeaningVisible) {
         document.getElementById('studyMeaning').classList.add('visible');
@@ -1220,7 +1253,7 @@
 
       const spaceSelect = document.getElementById('editWordSpaceSelect');
       spaceSelect.innerHTML = '';
-      
+
       sortSpaceNames(spaces).filter(sp => sp !== DEFAULT_SPACE).forEach(sp => {
         const opt = document.createElement('option');
         opt.value = sp;
