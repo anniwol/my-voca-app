@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>단어장 앱</title>
+  <style>
+    :root {
+      --bg-color: #f8f9fa;
+      --card-bg: #ffffff;
+      --text-color: #212529;
+      --text-sub: #6c757d;
+      --accent-color: #0d6efd;
+      --border-color: #e9ecef;
+      --input-bg: #ffffff;
+      --shadow-color: rgba(0, 0, 0, 0.05);
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --text-color: #f8f9fa;
+      --text-sub: #adb5bd;
+      --accent-color: #3d8bfd;
+      --border-color: #2c2c2c;
+      --input-bg: #2a2a2a;
+      --shadow-color: rgba(0, 0, 0, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 상단 네비게이션 헤더 */
+    .app-header {
+      height: 56px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+      background-color: var(--bg-color);
+      z-index: 100;
+      flex-shrink: 0;
+    }
+
+    .header-btn {
+      background: none;
+      border: none;
+      color: var(--text-color);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    /* 테마 스위치 */
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .theme-toggle input {
+      display: none;
+    }
+
+    .toggle-slider {
+      width: 44px;
+      height: 24px;
+      background-color: #ccc;
+      border-radius: 12px;
+      position: relative;
+      transition: 0.3s;
+    }
+
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background-color: white;
+      top: 3px;
+      left: 3px;
+      transition: 0.3s;
+    }
+
+    input:checked + .toggle-slider {
+      background-color: var(--accent-color);
+    }
+
+    input:checked + .toggle-slider::before {
+      transform: translateX(20px);
+    }
+
+    /* 메인 컨테이너 */
+    .content-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .section {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: none;
+      flex-direction: column;
+    }
+
+    .section.active {
+      display: flex;
+    }
+
+    /* [메인 홈 섹션] */
+    .home-container {
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 500px;
+      margin: 0 auto;
+      width: 100%;
+      height: 100%;
+      justify-content: center;
+    }
+
+    .menu-card {
+      background-color: var(--card-bg);
+      padding: 24px 20px;
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 12px var(--shadow-color);
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .menu-card:active {
+      transform: scale(0.98);
+    }
+
+    .menu-card h2 {
+      font-size: 1.25rem;
+      color: var(--accent-color);
+    }
+
+    .menu-card p {
+      font-size: 0.9rem;
+      color: var(--text-sub);
+    }
+
+    /* [공통 서브 컨테이너] */
+    .sub-container {
+      padding: 20px 16px;
+      overflow-y: auto;
+      max-width: 500px;
+      margin: 0 auto;
+      width: 100%;
+      flex: 1;
+    }
+
+    /* [섹션 1: 학습 설정 & 학습 실행] */
+    .space-select-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .space-checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background-color: var(--card-bg);
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    .space-checkbox-item input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent-color);
+    }
+
+    .bottom-action-bar {
+      margin-top: 24px;
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-action-left {
+      flex: 1;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      background-color: var(--card-bg);
+      color: #dc3545;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-action-left:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      color: var(--text-sub);
+    }
+
+    .btn-action-right {
+      flex: 1;
+      padding: 14px;
+      border-radius: 10px;
+      border: none;
+      background-color: var(--accent-color);
+      color: white;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-action-right:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* 학습 실행 화면 */
+    .study-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 30px 20px;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .study-stats-top {
+      position: absolute;
+      top: 20px;
+      font-size: 0.85rem;
+      color: var(--text-sub);
+      font-weight: 500;
+    }
+
+    .word-display {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      word-break: break-word;
+      color: var(--text-color);
+    }
+
+    .meaning-display {
+      font-size: 1.6rem;
+      color: var(--accent-color);
+      min-height: 2.2rem;
+      visibility: hidden;
+      word-break: break-word;
+      font-weight: 500;
+      margin-bottom: 16px;
+    }
+
+    .meaning-display.visible {
+      visibility: visible;
+    }
+
+    .incorrect-check-box {
+      position: absolute;
+      bottom: 70px;
+      left: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1.5rem;
+      color: var(--text-color);
+      visibility: hidden;
+      cursor: pointer;
+    }
+
+    .incorrect-check-box.visible {
+      visibility: visible;
+    }
+
+    .incorrect-check-box input {
+      width: 22px;
+      height: 22px;
+      accent-color: #dc3545;
+      cursor: pointer;
+    }
+
+    .study-hint {
+      position: absolute;
+      bottom: 24px;
+      font-size: 0.85rem;
+      color: var(--text-sub);
+    }
+
+    /* [섹션 2: 단어 저장 및 공간 관리] */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-sub);
+    }
+
+    .form-input, .form-textarea, .form-select {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      font-size: 0.95rem;
+      outline: none;
+      user-select: text;
+    }
+
+    .form-textarea {
+      height: 100px;
+      resize: none;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: none;
+      background-color: var(--accent-color);
+      color: white;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .space-manage-box {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* 아코디언 */
+    .accordion-toggle {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 14px;
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-color);
+      cursor: pointer;
+      margin-top: 12px;
+      margin-bottom: 12px;
+    }
+
+    .accordion-content {
+      display: none;
+      padding-bottom: 12px;
+    }
+
+    .accordion-content.open {
+      display: block;
+    }
+
+    .divider {
+      text-align: center;
+      margin: 24px 0 16px 0;
+      position: relative;
+    }
+
+    .divider::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      background-color: var(--border-color);
+      z-index: 1;
+    }
+
+    .divider span {
+      position: relative;
+      z-index: 2;
+      background-color: var(--bg-color);
+      padding: 0 12px;
+      font-size: 0.85rem;
+      color: var(--text-sub);
+    }
+
+    /* [섹션 3: 단어 목록 및 검색] */
+    .list-header-area {
+      padding: 12px 16px;
+      background-color: var(--bg-color);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      font-size: 0.95rem;
+      outline: none;
+      user-select: text;
+    }
+
+    .word-list-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .list-container {
+      max-width: 500px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-bottom: 40px;
+    }
+
+    .word-item {
+      background-color: var(--card-bg);
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+
+    .word-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      user-select: text;
+    }
+
+    .word-item-eng {
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .word-item-kor {
+      font-size: 0.9rem;
+      color: var(--text-sub);
+    }
+
+    .word-item-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      font-size: 0.8rem;
+    }
+
+    .word-rate-badge {
+      color: #dc3545;
+      font-weight: 600;
+    }
+
+    .word-space-badge {
+      background-color: var(--border-color);
+      color: var(--text-sub);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    .empty-msg {
+      text-align: center;
+      color: var(--text-sub);
+      padding: 40px 0;
+      font-size: 0.95rem;
+    }
+
+    /* 모달 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-box {
+      background-color: var(--card-bg);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .modal-btns {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: none;
+      color: var(--text-color);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-danger {
+      flex: 1;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      background-color: #dc3545;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 상단 헤더 -->
+  <header class="app-header">
+    <button class="header-btn" id="backBtn" style="visibility: hidden;">&#x2190;</button>
+    <div class="header-title" id="headerTitle">단어장</div>
+    <label class="theme-toggle">
+      <input type="checkbox" id="themeSwitch">
+      <span class="toggle-slider"></span>
+    </label>
+  </header>
+
+  <!-- 콘텐츠 구역 -->
+  <main class="content-area">
+
+    <!-- [홈 섹션] -->
+    <section id="sec-home" class="section active">
+      <div class="home-container">
+        <div class="menu-card" onclick="navTo('study-select')">
+          <h2>1. 랜덤 단어 학습</h2>
+          <p>저장 공간을 선택하고 가중치 기반 단어를 학습합니다.</p>
+        </div>
+        <div class="menu-card" onclick="navTo('add')">
+          <h2>2. 단어 저장 및 공간 관리</h2>
+          <p>공간을 선택하여 단어를 추가하거나 공간을 편집합니다.</p>
+        </div>
+        <div class="menu-card" onclick="navTo('list')">
+          <h2>3. 저장 단어 확인</h2>
+          <p>알파벳순 목록, 오답률, 소속 공간을 확인하고 편집합니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- [섹션 1-1: 학습 공간 선택] -->
+    <section id="sec-study-select" class="section">
+      <div class="sub-container">
+        <div class="form-group" style="margin-bottom: 8px;">
+          <label style="display: flex; justify-content: space-between; align-items: center;">
+            출제할 단어 저장 공간 선택
+            <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick="toggleSelectAllSpaces()">전체 선택/해제</button>
+          </label>
+        </div>
+        <div class="space-select-list" id="studySpaceList"></div>
+
+        <div class="bottom-action-bar">
+          <button class="btn-action-left" id="btnResetData" onclick="resetSelectedSpacesData()" disabled>누적 정보 초기화</button>
+          <button class="btn-action-right" id="btnStartStudy" onclick="startStudyExecution()" disabled>학습 시작</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- [섹션 1-2: 학습 실행 화면] -->
+    <section id="sec-study-exec" class="section">
+      <div class="study-container" id="studyArea">
+        <div class="study-stats-top" id="studyStatsTop">오답률 0% (오답 0회 / 출제 0회)</div>
+        <div class="word-display" id="studyWord">단어 불러오는 중...</div>
+        <div class="meaning-display" id="studyMeaning">뜻</div>
+        
+        <label class="incorrect-check-box" id="incorrectBox" onclick="event.stopPropagation();">
+          <input type="checkbox" id="chkIncorrect">
+          <span>오답 체크</span>
+        </label>
+
+        <div class="study-hint" id="studyHint">화면을 터치하세요</div>
+      </div>
+    </section>
+
+    <!-- [섹션 2: 단어 저장 및 공간 관리] -->
+    <section id="sec-add" class="section">
+      <div class="sub-container">
+        <!-- 1. 공간 선택 -->
+        <div class="form-group">
+          <label>공간 선택</label>
+          <select id="saveSpaceSelect" class="form-select"></select>
+        </div>
+
+        <!-- 2. 개별 단어 추가 -->
+        <div class="form-group">
+          <input type="text" id="inputEng" class="form-input" placeholder="영단어" style="margin-bottom: 8px;">
+          <input type="text" id="inputKor" class="form-input" placeholder="뜻">
+        </div>
+        <button class="btn-primary" onclick="addSingleWord()">단어 저장하기</button>
+
+        <!-- 3. 일괄 입력 (아코디언) -->
+        <div class="accordion-toggle" onclick="toggleBatchAccordion()">
+          <span>일괄 입력</span>
+          <span id="accordionArrow">&gt;</span>
+        </div>
+        <div class="accordion-content" id="batchAccordionContent">
+          <div class="form-group">
+            <textarea id="inputBatch" class="form-textarea" placeholder="apple:사과&#10;banana:바나나"></textarea>
+          </div>
+          <button class="btn-primary" onclick="addBatchWords()">일괄 저장하기</button>
+        </div>
+
+        <div class="divider"><span>공간 관리</span></div>
+
+        <!-- 4. 새 공간 생성 (최대 15자) -->
+        <div class="form-group">
+          <label>새 공간 생성 (최대 15자)</label>
+          <div class="space-manage-box">
+            <input type="text" id="newSpaceName" class="form-input" maxlength="15" placeholder="공간 이름 입력">
+            <button class="btn-primary" style="width: 90px; flex-shrink: 0;" onclick="createNewSpace()">생성</button>
+          </div>
+        </div>
+
+        <!-- 5. 공간 편집 (최대 15자 / 디폴트: (비어 있음)) -->
+        <div class="form-group">
+          <label>공간 편집</label>
+          <select id="editSpaceSelect" class="form-select" style="margin-bottom: 8px;"></select>
+          <div class="space-manage-box">
+            <input type="text" id="renameSpaceName" class="form-input" maxlength="15" placeholder="바꿀 이름 입력">
+            <button class="btn-secondary" style="width: 75px; flex-shrink: 0;" onclick="renameSpace()">수정</button>
+            <button class="btn-danger" style="width: 75px; flex-shrink: 0;" onclick="deleteSpace()">삭제</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- [섹션 3: 저장 단어 확인] -->
+    <section id="sec-list" class="section">
+      <div class="list-header-area">
+        <input type="text" id="searchInput" class="search-input" placeholder="단어, 뜻 또는 공간 검색..." oninput="renderList()">
+      </div>
+      <div class="word-list-scroll">
+        <div class="list-container" id="vocabList"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 단어 수정/삭제 모달 -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal-box">
+      <div class="modal-title">단어 수정</div>
+      <input type="text" id="editEng" class="form-input" placeholder="영단어">
+      <input type="text" id="editKor" class="form-input" placeholder="뜻">
+      <div class="form-group" style="margin: 0;">
+        <label>소속 공간</label>
+        <select id="editWordSpaceSelect" class="form-select"></select>
+      </div>
+      <div class="modal-btns">
+        <button class="btn-danger" onclick="deleteCurrentWord()">삭제</button>
+        <button class="btn-secondary" onclick="closeModal()">취소</button>
+        <button class="btn-primary" style="flex: 1;" onclick="saveEditWord()">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_SPACE = "틀린 단어 모음";
+
+    let spaces = JSON.parse(localStorage.getItem('my_spaces_db')) || [DEFAULT_SPACE];
+    let vocab = JSON.parse(localStorage.getItem('my_vocab_db')) || [];
+    let currentTheme = localStorage.getItem('my_vocab_theme') || 'light';
+
+    let activeStudySpaces = [];
+    let currentStudyWord = null;
+    let isMeaningVisible = false;
+    let editingId = null;
+
+    const themeSwitch = document.getElementById('themeSwitch');
+    const backBtn = document.getElementById('backBtn');
+    const headerTitle = document.getElementById('headerTitle');
+
+    function sortSpaceNames(arr) {
+      return [...arr].sort((a, b) => {
+        if (a === DEFAULT_SPACE) return -1;
+        if (b === DEFAULT_SPACE) return 1;
+
+        const getType = (str) => {
+          const first = str.trim().charAt(0);
+          if (/[0-9]/.test(first)) return 1;
+          if (/[가-힣]/.test(first)) return 2;
+          if (/[a-zA-Z]/.test(first)) return 3;
+          return 4;
+        };
+
+        const typeA = getType(a);
+        const typeB = getType(b);
+
+        if (typeA !== typeB) return typeA - typeB;
+        return a.localeCompare(b, 'ko-KR', { numeric: true, sensitivity: 'base' });
+      });
+    }
+
+    function init() {
+      if (!spaces.includes(DEFAULT_SPACE)) {
+        spaces.unshift(DEFAULT_SPACE);
+      }
+      if (currentTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        themeSwitch.checked = true;
+      }
+      saveData();
+    }
+
+    function saveData() {
+      localStorage.setItem('my_spaces_db', JSON.stringify(spaces));
+      localStorage.setItem('my_vocab_db', JSON.stringify(vocab));
+    }
+
+    themeSwitch.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('my_vocab_theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('my_vocab_theme', 'light');
+      }
+    });
+
+    function navTo(secName) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+
+      if (secName === 'home') {
+        document.getElementById('sec-home').classList.add('active');
+        backBtn.style.visibility = 'hidden';
+        headerTitle.textContent = '단어장';
+      } else {
+        document.getElementById(`sec-${secName}`).classList.add('active');
+        backBtn.style.visibility = 'visible';
+
+        if (secName === 'study-select') {
+          headerTitle.textContent = '학습 공간 선택';
+          renderStudySpaceList();
+        } else if (secName === 'add') {
+          headerTitle.textContent = '단어 저장 및 공간 관리';
+          renderSpaceOptions();
+        } else if (secName === 'list') {
+          headerTitle.textContent = '저장 단어 확인';
+          renderList();
+        }
+      }
+    }
+
+    backBtn.addEventListener('click', () => {
+      const activeSec = document.querySelector('.section.active').id;
+      if (activeSec === 'sec-study-exec') {
+        navTo('study-select');
+      } else {
+        navTo('home');
+      }
+    });
+
+    // --- [섹션 1: 학습 공간 선택 및 실행] ---
+    function renderStudySpaceList() {
+      const container = document.getElementById('studySpaceList');
+      container.innerHTML = '';
+      const sortedSpaces = sortSpaceNames(spaces);
+
+      sortedSpaces.forEach(sp => {
+        const count = vocab.filter(v => v.space === sp).length;
+        const label = document.createElement('label');
+        label.className = 'space-checkbox-item';
+        label.innerHTML = `
+          <input type="checkbox" value="${escapeHtml(sp)}" onchange="updateStudyButtonState()">
+          <span>${escapeHtml(sp)} (${count}개)</span>
+        `;
+        container.appendChild(label);
+      });
+
+      updateStudyButtonState();
+    }
+
+    function toggleSelectAllSpaces() {
+      const checkboxes = document.querySelectorAll('#studySpaceList input[type="checkbox"]');
+      const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+      checkboxes.forEach(cb => cb.checked = !allChecked);
+      updateStudyButtonState();
+    }
+
+    // 조건 수정: 선택된 공간 중 '틀린 단어 모음'이 아닌 일반 공간이 최소 1개 이상 존재해야 [누적 정보 초기화] 버튼 활성화
+    function updateStudyButtonState() {
+      const checkedBoxes = document.querySelectorAll('#studySpaceList input[type="checkbox"]:checked');
+      const selectedSpaces = Array.from(checkedBoxes).map(cb => cb.value);
+
+      const hasSelection = selectedSpaces.length > 0;
+      const hasUserSpaces = selectedSpaces.some(sp => sp !== DEFAULT_SPACE);
+
+      document.getElementById('btnStartStudy').disabled = !hasSelection;
+      document.getElementById('btnResetData').disabled = !hasUserSpaces;
+    }
+
+    function resetSelectedSpacesData() {
+      const checkedBoxes = document.querySelectorAll('#studySpaceList input[type="checkbox"]:checked');
+      const selectedSpaces = Array.from(checkedBoxes).map(cb => cb.value);
+
+      if (selectedSpaces.length === 0) return;
+
+      if (confirm('선택한 공간에 속한 단어들의 출제 횟수와 오답 기록을 초기화하시겠습니까?')) {
+        vocab.forEach(item => {
+          if (selectedSpaces.includes(item.space)) {
+            item.weight = 0;
+            item.incorrect = 0;
+          }
+        });
+
+        cleanUpDefaultIncorrectSpace();
+        saveData();
+        renderStudySpaceList();
+        alert('선택한 공간의 누적 정보가 초기화되었습니다.');
+      }
+    }
+
+    function cleanUpDefaultIncorrectSpace() {
+      vocab = vocab.filter(item => {
+        if (item.space === DEFAULT_SPACE) {
+          const original = vocab.find(orig => orig.id === item.originalId);
+          return original && original.incorrect > 0;
+        }
+        return true;
+      });
+    }
+
+    function startStudyExecution() {
+      const checkedBoxes = document.querySelectorAll('#studySpaceList input[type="checkbox"]:checked');
+      activeStudySpaces = Array.from(checkedBoxes).map(cb => cb.value);
+
+      const targetWords = vocab.filter(v => activeStudySpaces.includes(v.space));
+
+      if (targetWords.length === 0) {
+        alert('선택한 공간에 등록된 단어가 없습니다.');
+        return;
+      }
+
+      navTo('study-exec');
+      headerTitle.textContent = '랜덤 학습';
+      nextStudyWord();
+    }
+
+    function nextStudyWord() {
+      const targetWords = vocab.filter(v => activeStudySpaces.includes(v.space));
+
+      if (targetWords.length === 0) {
+        document.getElementById('studyWord').textContent = "단어가 없습니다";
+        document.getElementById('studyMeaning').textContent = "";
+        document.getElementById('studyStatsTop').textContent = "";
+        return;
+      }
+
+      let selectedWord = null;
+
+      if (targetWords.length === 1) {
+        selectedWord = targetWords[0];
+      } else {
+        let idx1 = Math.floor(Math.random() * targetWords.length);
+        let idx2 = Math.floor(Math.random() * targetWords.length);
+        while (idx2 === idx1) {
+          idx2 = Math.floor(Math.random() * targetWords.length);
+        }
+
+        const w1 = targetWords[idx1];
+        const w2 = targetWords[idx2];
+
+        selectedWord = (w1.weight || 0) <= (w2.weight || 0) ? w1 : w2;
+      }
+
+      currentStudyWord = selectedWord;
+      currentStudyWord.weight = (currentStudyWord.weight || 0) + 1;
+      saveData();
+
+      const weight = currentStudyWord.weight || 0;
+      const incorrect = currentStudyWord.incorrect || 0;
+      const rate = weight === 0 ? 0 : Math.round((incorrect / weight) * 100);
+
+      document.getElementById('studyStatsTop').textContent = `오답률 ${rate}% (오답 ${incorrect}회 / 출제 ${weight}회)`;
+      document.getElementById('studyWord').textContent = currentStudyWord.eng;
+      document.getElementById('studyMeaning').textContent = currentStudyWord.kor;
+      document.getElementById('studyMeaning').classList.remove('visible');
+
+      document.getElementById('chkIncorrect').checked = false;
+      document.getElementById('incorrectBox').classList.remove('visible');
+      document.getElementById('studyHint').textContent = "화면을 터치하면 뜻이 공개됩니다";
+
+      isMeaningVisible = false;
+    }
+
+    document.getElementById('studyArea').addEventListener('click', () => {
+      if (!currentStudyWord) return;
+
+      if (!isMeaningVisible) {
+        document.getElementById('studyMeaning').classList.add('visible');
+        document.getElementById('incorrectBox').classList.add('visible');
+        document.getElementById('studyHint').textContent = "화면을 터치하면 다음 단어로 넘어갑니다";
+        isMeaningVisible = true;
+      } else {
+        const isChecked = document.getElementById('chkIncorrect').checked;
+        if (isChecked) {
+          currentStudyWord.incorrect = (currentStudyWord.incorrect || 0) + 1;
+
+          const existsInDefault = vocab.some(v => v.space === DEFAULT_SPACE && v.originalId === currentStudyWord.id);
+          if (!existsInDefault) {
+            vocab.push({
+              id: Date.now() + Math.random(),
+              originalId: currentStudyWord.id,
+              eng: currentStudyWord.eng,
+              kor: currentStudyWord.kor,
+              space: DEFAULT_SPACE,
+              weight: currentStudyWord.weight,
+              incorrect: currentStudyWord.incorrect
+            });
+          }
+          saveData();
+        }
+        nextStudyWord();
+      }
+    });
+
+    // --- [섹션 2: 단어 저장 및 공간 관리] ---
+    function renderSpaceOptions() {
+      const saveSelect = document.getElementById('saveSpaceSelect');
+      const editSelect = document.getElementById('editSpaceSelect');
+
+      saveSelect.innerHTML = '';
+      editSelect.innerHTML = '';
+
+      const defaultOptSave = document.createElement('option');
+      defaultOptSave.value = "";
+      defaultOptSave.textContent = "(비어 있음)";
+      saveSelect.appendChild(defaultOptSave);
+
+      const defaultOptEdit = document.createElement('option');
+      defaultOptEdit.value = "";
+      defaultOptEdit.textContent = "(비어 있음)";
+      editSelect.appendChild(defaultOptEdit);
+
+      const userSpaces = sortSpaceNames(spaces).filter(s => s !== DEFAULT_SPACE);
+
+      userSpaces.forEach(sp => {
+        const optSave = document.createElement('option');
+        optSave.value = sp;
+        optSave.textContent = sp;
+        saveSelect.appendChild(optSave);
+
+        const optEdit = document.createElement('option');
+        optEdit.value = sp;
+        optEdit.textContent = sp;
+        editSelect.appendChild(optEdit);
+      });
+    }
+
+    function toggleBatchAccordion() {
+      const content = document.getElementById('batchAccordionContent');
+      const arrow = document.getElementById('accordionArrow');
+      if (content.classList.contains('open')) {
+        content.classList.remove('open');
+        arrow.textContent = '>';
+      } else {
+        content.classList.add('open');
+        arrow.textContent = 'v';
+      }
+    }
+
+    function createNewSpace() {
+      const name = document.getElementById('newSpaceName').value.trim();
+
+      if (!name) {
+        alert('공간 이름을 입력해주세요.');
+        return;
+      }
+      if (name === DEFAULT_SPACE || spaces.includes(name)) {
+        alert('사용할 수 없거나 이미 존재하는 공간 이름입니다.');
+        return;
+      }
+
+      spaces.push(name);
+      saveData();
+      document.getElementById('newSpaceName').value = '';
+      renderSpaceOptions();
+      alert(`'${name}' 공간이 생성되었습니다.`);
+    }
+
+    function renameSpace() {
+      const editSelect = document.getElementById('editSpaceSelect');
+      const oldName = editSelect.value;
+      const newName = document.getElementById('renameSpaceName').value.trim();
+
+      if (!oldName) {
+        alert('편집할 공간을 선택해주세요');
+        return;
+      }
+      if (!newName) {
+        alert('바꿀 이름을 입력해주세요.');
+        return;
+      }
+      if (newName === DEFAULT_SPACE || spaces.includes(newName)) {
+        alert('사용할 수 없거나 이미 존재하는 공간 이름입니다.');
+        return;
+      }
+
+      if (confirm(`${oldName} -> ${newName} 변경 하시겠습니까?`)) {
+        const idx = spaces.indexOf(oldName);
+        if (idx !== -1) {
+          spaces[idx] = newName;
+          vocab.forEach(v => {
+            if (v.space === oldName) v.space = newName;
+          });
+          saveData();
+          document.getElementById('renameSpaceName').value = '';
+          renderSpaceOptions();
+          alert('수정되었습니다.');
+        }
+      }
+    }
+
+    function deleteSpace() {
+      const editSelect = document.getElementById('editSpaceSelect');
+      const targetSpace = editSelect.value;
+
+      if (!targetSpace) {
+        alert('편집할 공간을 선택해주세요');
+        return;
+      }
+
+      if (confirm(`${targetSpace} 삭제하시겠습니까?`)) {
+        spaces = spaces.filter(s => s !== targetSpace);
+        vocab = vocab.filter(v => v.space !== targetSpace);
+        saveData();
+        renderSpaceOptions();
+        alert('삭제되었습니다.');
+      }
+    }
+
+    function addSingleWord() {
+      const space = document.getElementById('saveSpaceSelect').value;
+      const eng = document.getElementById('inputEng').value.trim();
+      const kor = document.getElementById('inputKor').value.trim();
+
+      if (!space) {
+        alert('저장할 공간을 선택해주세요');
+        return;
+      }
+      if (!eng || !kor) {
+        alert('영단어와 뜻을 모두 입력해주세요.');
+        return;
+      }
+
+      vocab.push({ id: Date.now(), eng, kor, space, weight: 0, incorrect: 0 });
+      saveData();
+
+      document.getElementById('inputEng').value = '';
+      document.getElementById('inputKor').value = '';
+      alert('단어가 저장되었습니다.');
+    }
+
+    function addBatchWords() {
+      const space = document.getElementById('saveSpaceSelect').value;
+      const text = document.getElementById('inputBatch').value.trim();
+
+      if (!space) {
+        alert('저장할 공간을 선택해주세요');
+        return;
+      }
+      if (!text) {
+        alert('단어 내용을 입력해주세요.');
+        return;
+      }
+
+      const lines = text.split('\n');
+      let count = 0;
+
+      lines.forEach(line => {
+        const parts = line.split(':');
+        if (parts.length >= 2) {
+          const eng = parts[0].trim();
+          const kor = parts.slice(1).join(':').trim();
+          if (eng && kor) {
+            vocab.push({ id: Date.now() + Math.random(), eng, kor, space, weight: 0, incorrect: 0 });
+            count++;
+          }
+        }
+      });
+
+      if (count > 0) {
+        saveData();
+        document.getElementById('inputBatch').value = '';
+        alert(`${count}개의 단어가 성공적으로 저장되었습니다.`);
+      } else {
+        alert('올바른 형식(영단어:뜻)으로 입력해주세요.');
+      }
+    }
+
+    // --- [섹션 3: 저장 단어 확인] ---
+    function renderList() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const vocabList = document.getElementById('vocabList');
+      vocabList.innerHTML = '';
+
+      const userVocab = vocab.filter(v => v.space !== DEFAULT_SPACE);
+      const sorted = [...userVocab].sort((a, b) => a.eng.localeCompare(b.eng, 'en', { sensitivity: 'base' }));
+
+      const filtered = sorted.filter(item =>
+        item.eng.toLowerCase().includes(query) ||
+        item.kor.toLowerCase().includes(query) ||
+        (item.space && item.space.toLowerCase().includes(query))
+      );
+
+      if (filtered.length === 0) {
+        vocabList.innerHTML = `<div class="empty-msg">${query ? '검색 결과가 없습니다.' : '등록된 단어가 없습니다.'}</div>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const weight = item.weight || 0;
+        const incorrect = item.incorrect || 0;
+        const rate = weight === 0 ? 0 : Math.round((incorrect / weight) * 100);
+
+        const div = document.createElement('div');
+        div.className = 'word-item';
+        div.onclick = () => openModal(item.id);
+        div.innerHTML = `
+          <div class="word-item-info">
+            <div class="word-item-eng">${escapeHtml(item.eng)}</div>
+            <div class="word-item-kor">${escapeHtml(item.kor)}</div>
+          </div>
+          <div class="word-item-meta">
+            <div class="word-rate-badge">${rate}%</div>
+            <div class="word-space-badge">${escapeHtml(item.space || '기본')}</div>
+          </div>
+        `;
+        vocabList.appendChild(div);
+      });
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function openModal(id) {
+      editingId = id;
+      const item = vocab.find(v => v.id === id);
+      if (!item) return;
+
+      document.getElementById('editEng').value = item.eng;
+      document.getElementById('editKor').value = item.kor;
+
+      const spaceSelect = document.getElementById('editWordSpaceSelect');
+      spaceSelect.innerHTML = '';
+      
+      sortSpaceNames(spaces).filter(sp => sp !== DEFAULT_SPACE).forEach(sp => {
+        const opt = document.createElement('option');
+        opt.value = sp;
+        opt.textContent = sp;
+        if (sp === item.space) opt.selected = true;
+        spaceSelect.appendChild(opt);
+      });
+
+      document.getElementById('editModal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('editModal').classList.remove('active');
+      editingId = null;
+    }
+
+    function saveEditWord() {
+      const eng = document.getElementById('editEng').value.trim();
+      const kor = document.getElementById('editKor').value.trim();
+      const space = document.getElementById('editWordSpaceSelect').value;
+
+      if (!eng || !kor) {
+        alert('영단어와 뜻을 모두 입력해주세요.');
+        return;
+      }
+
+      const index = vocab.findIndex(v => v.id === editingId);
+      if (index !== -1) {
+        vocab[index].eng = eng;
+        vocab[index].kor = kor;
+        vocab[index].space = space;
+        saveData();
+        renderList();
+        closeModal();
+      }
+    }
+
+    function deleteCurrentWord() {
+      if (confirm('이 단어를 삭제하시겠습니까?')) {
+        vocab = vocab.filter(v => v.id !== editingId);
+        saveData();
+        renderList();
+        closeModal();
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
