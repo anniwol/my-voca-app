@@ -287,16 +287,16 @@
   </div>
 
   <script>
-    const REVIEW_FOLDER_NAME = "복습이 필요한 단어"; // 저장 단어 확인 화면의 폴더 이름 (공간이 아님)
-    const OLD_REVIEW_NAMES = ["틀린 단어 모음", "복습이 필요한 단어"]; // 이전 버전 데이터 이전용
-    const PICK_K = 4; // 후보 K개를 무작위로 뽑아 출제 횟수가 가장 적은 단어를 출제
+    const REVIEW_FOLDER_NAME = "복습이 필요한 단어";
+    const OLD_REVIEW_NAMES = ["틀린 단어 모음", "복습이 필요한 단어"];
+    const PICK_K = 4;
 
     let spaces = JSON.parse(localStorage.getItem('my_spaces_db')) || [];
     let vocab = JSON.parse(localStorage.getItem('my_vocab_db')) || [];
     let currentTheme = localStorage.getItem('my_vocab_theme') || 'light';
 
     let activeStudySpaces = [];
-    let studyMode = 'normal'; // 'normal' | 'review'
+    let studyMode = 'normal';
     let currentStudyWord = null;
     let previousStudyState = null;
     let nextPlannedWord = null;
@@ -325,7 +325,6 @@
     }
 
     function init() {
-      // 이전 버전 데이터 이전: 복습 공간의 복사본 -> 원본 단어의 review 표시로 변환
       const copies = vocab.filter(v => OLD_REVIEW_NAMES.includes(v.space));
       copies.forEach(c => {
         const original = vocab.find(o => o.id === c.originalId && !OLD_REVIEW_NAMES.includes(o.space));
@@ -389,7 +388,6 @@
       navTo(activeSec === 'sec-study-exec' ? 'study-select' : 'home');
     });
 
-    // --- [섹션 1: 학습 공간 선택 및 실행] ---
     function renderStudySpaceList() {
       const container = document.getElementById('studySpaceList');
       container.innerHTML = '';
@@ -461,7 +459,6 @@
       nextStudyWord();
     }
 
-    // K개 후보를 무작위로 뽑고, 그중 출제 횟수가 가장 적은 단어를 선택 (동점이면 무작위)
     function pickWord(pool, field) {
       const k = Math.min(PICK_K, pool.length);
       const chosen = new Set();
@@ -480,7 +477,6 @@
     }
 
     function nextStudyWord() {
-      // 토글(체크박스)은 화면이 넘어가는 즉시 숨김
       reviewBox.classList.remove('visible');
       document.getElementById('studyMeaning').classList.remove('visible');
 
@@ -557,7 +553,6 @@
       }
     });
 
-    // --- [섹션 2: 단어 저장 및 공간 관리] ---
     function renderSpaceOptions() {
       const saveSelect = document.getElementById('saveSpaceSelect');
       const editSelect = document.getElementById('editSpaceSelect');
@@ -683,10 +678,8 @@
       }
     }
 
-    // --- [섹션 3: 저장 단어 확인 / 복습 폴더 / 중복 폴더] ---
     const byEng = (a, b) => a.eng.localeCompare(b.eng, 'en', { sensitivity: 'base' });
 
-    // 중복 그룹: 영단어(대소문자·앞뒤 공백 무시)가 같은 단어들. 뜻이 가장 긴 1개만 남김(동률이면 먼저 저장된 것)
     function getDuplicateGroups() {
       const map = new Map();
       vocab.forEach(v => {
@@ -812,19 +805,19 @@
       document.getElementById('dupListModal').classList.remove('active');
     }
 
+    // 수정된 중복 일괄 삭제 함수 (id 기준)
     function deleteDuplicates() {
       const groups = getDuplicateGroups();
       const total = groups.reduce((n, g) => n + g.remove.length, 0);
       if (total === 0) return;
 
       if (confirm(`중복 단어 ${total}개를 삭제하고, 각 단어마다 뜻이 가장 긴 1개만 남깁니다.\n계속하시겠습니까?`)) {
-        const removeSet = new Set();
+        const removeIds = new Set();
         groups.forEach(g => {
-          // 삭제되는 단어 중 복습 표시가 있었다면 남는 단어로 이어줌
           if (g.remove.some(it => it.review)) g.keep.review = true;
-          g.remove.forEach(it => removeSet.add(it));
+          g.remove.forEach(it => removeIds.add(it.id));
         });
-        vocab = vocab.filter(v => !removeSet.has(v));
+        vocab = vocab.filter(v => !removeIds.has(v.id));
         saveData();
         renderList();
         closeDupModal();
@@ -880,12 +873,13 @@
       }
     }
 
+    // 수정된 단어 수정 모달 내 삭제 함수
     function deleteCurrentWord() {
       if (confirm('이 단어를 삭제하시겠습니까?')) {
         vocab = vocab.filter(v => v.id !== editingId);
         saveData();
-        renderList();
         closeModal();
+        renderList();
       }
     }
 
