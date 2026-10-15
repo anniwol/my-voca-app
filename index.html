@@ -31,6 +31,7 @@
       color: var(--text-color);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       height: 100vh;
+      height: 100dvh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -61,8 +62,13 @@
 
     .sub-container { padding: 20px 16px; overflow-y: auto; max-width: 500px; margin: 0 auto; width: 100%; flex: 1; }
 
+    /* 학습 공간 선택: 화면 높이를 꽉 채우고, 목록만 스크롤 / 하단 버튼은 고정 */
+    .study-select-container { display: flex; flex-direction: column; overflow: hidden; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+    .study-select-container .space-select-list { flex: 1; min-height: 0; max-height: none; margin-top: 4px; }
+    .study-select-container .bottom-action-bar { margin-top: 12px; flex-shrink: 0; }
+
     .space-select-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; max-height: 300px; overflow-y: auto; }
-    .space-checkbox-item { display: flex; align-items: center; gap: 10px; background-color: var(--card-bg); padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 0.95rem; cursor: pointer; }
+    .space-checkbox-item { display: flex; align-items: center; gap: 10px; background-color: var(--card-bg); padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border-color); font-size: 0.95rem; cursor: pointer; flex-shrink: 0; }
     .space-checkbox-item input { width: 18px; height: 18px; accent-color: var(--accent-color); }
 
     .bottom-action-bar { margin-top: 24px; display: flex; gap: 12px; }
@@ -72,7 +78,7 @@
     .btn-action-right:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-action-mid { flex: 1; padding: 14px; border-radius: 10px; border: 1px solid var(--accent-color); background-color: var(--card-bg); color: var(--accent-color); font-size: 0.95rem; font-weight: 600; cursor: pointer; }
     .btn-action-mid:disabled { opacity: 0.4; cursor: not-allowed; }
-    .bottom-action-bar button { font-size: 0.85rem; padding: 14px 4px; }
+    .bottom-action-bar button { font-size: 0.85rem; padding: 14px 4px; white-space: nowrap; }
     .dup-group { border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
     .dup-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.9rem; }
     .dup-row small { color: var(--text-sub); }
@@ -86,9 +92,10 @@
     .meaning-display { font-size: 1.6rem; color: var(--accent-color); min-height: 2.2rem; visibility: hidden; word-break: break-word; font-weight: 500; margin-bottom: 16px; }
     .meaning-display.visible { visibility: visible; }
 
-    .review-check { position: absolute; bottom: 70px; left: 24px; display: none; align-items: center; gap: 10px; font-size: 1.2rem; font-weight: 600; cursor: pointer; }
+    /* 복습 필요 토글: 기존 대비 1.5배, 우측 하단 */
+    .review-check { position: absolute; bottom: 70px; right: 24px; display: none; align-items: center; gap: 15px; font-size: 1.8rem; font-weight: 600; cursor: pointer; }
     .review-check.visible { display: flex; }
-    .review-check input { width: 24px; height: 24px; accent-color: var(--accent-color); cursor: pointer; }
+    .review-check input { width: 36px; height: 36px; accent-color: var(--accent-color); cursor: pointer; }
     .study-hint { position: absolute; bottom: 24px; font-size: 0.85rem; color: var(--text-sub); }
 
     .form-group { margin-bottom: 16px; }
@@ -162,9 +169,9 @@
     </section>
 
     <section id="sec-study-select" class="section">
-      <div class="sub-container">
+      <div class="sub-container study-select-container">
         <div class="form-group" style="margin-bottom: 8px;">
-          <label style="display: flex; justify-content: space-between; align-items: center;">
+          <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
             출제할 단어 저장 공간 선택
             <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; flex: none;" onclick="toggleSelectAllSpaces()">전체 선택/해제</button>
           </label>
@@ -172,7 +179,7 @@
         <div class="space-select-list" id="studySpaceList"></div>
         <div class="bottom-action-bar">
           <button class="btn-action-left" id="btnResetData" onclick="resetSelectedSpacesData()" disabled>출제 횟수 초기화</button>
-          <button class="btn-action-mid" id="btnReviewStudy" onclick="startStudyExecution('review')" disabled>복습 단어 집중 학습</button>
+          <button class="btn-action-mid" id="btnReviewStudy" onclick="startStudyExecution('review')" disabled>복습 단어 학습</button>
           <button class="btn-action-right" id="btnStartStudy" onclick="startStudyExecution('normal')" disabled>학습 시작</button>
         </div>
       </div>
@@ -289,7 +296,7 @@
   <script>
     const REVIEW_FOLDER_NAME = "복습이 필요한 단어";
     const OLD_REVIEW_NAMES = ["틀린 단어 모음", "복습이 필요한 단어"];
-    const PICK_K = 4;
+    const PREV_ZONE_RATIO = 0.30; // 화면 왼쪽 30% = 이전 단어
 
     let spaces = JSON.parse(localStorage.getItem('my_spaces_db')) || [];
     let vocab = JSON.parse(localStorage.getItem('my_vocab_db')) || [];
@@ -298,8 +305,10 @@
     let activeStudySpaces = [];
     let studyMode = 'normal';
     let currentStudyWord = null;
-    let previousStudyState = null;
+    let currentRound = 1;
+    let previousStudyState = null;   // { wordId, round }
     let nextPlannedWord = null;
+    let nextPlannedRound = 1;
     let isMeaningVisible = false;
     let editingId = null;
 
@@ -335,6 +344,7 @@
       vocab.forEach(v => {
         delete v.incorrect;
         delete v.originalId;
+        if (v.weight === undefined) v.weight = 0;
         if (v.rweight === undefined) v.rweight = 0;
         v.review = !!v.review;
       });
@@ -429,7 +439,7 @@
       const selected = Array.from(document.querySelectorAll('#studySpaceList input[type="checkbox"]:checked')).map(cb => cb.value);
       if (selected.length === 0) return;
 
-      if (confirm('선택한 공간 단어들의 출제 횟수(일반/복습 집중 모두)를 초기화하시겠습니까?\n(복습 표시는 유지됩니다)')) {
+      if (confirm('선택한 공간 단어들의 출제 횟수(회독 기록, 일반/복습 모두)를 초기화하시겠습니까?\n(복습 표시는 유지됩니다)')) {
         vocab.forEach(item => {
           if (selected.includes(item.space)) { item.weight = 0; item.rweight = 0; }
         });
@@ -452,25 +462,31 @@
       }
 
       currentStudyWord = null;
+      currentRound = 1;
       previousStudyState = null;
       nextPlannedWord = null;
+      nextPlannedRound = 1;
       navTo('study-exec');
       headerTitle.textContent = mode === 'review' ? '복습 집중 학습' : '랜덤 학습';
       nextStudyWord();
     }
 
+    /*
+     * 회독 방식 (셔플 백):
+     * 각 단어의 출제 횟수(field)를 그대로 "몇 번 돌았는지" 로 사용한다.
+     * 풀에서 출제 횟수가 가장 적은 단어들 = 이번 회독에서 아직 안 나온 단어들.
+     * 그중 균등 랜덤으로 1개를 뽑으면, 한 바퀴 동안 모든 단어가 정확히 1번씩 나온다.
+     * 회독 번호 = (풀 내 최소 출제 횟수) + 1 이라서 별도 bool / 홀짝 관리가 필요 없고,
+     * 단어 추가·삭제나 공간 선택이 바뀌어도 자동으로 맞춰진다.
+     */
     function pickWord(pool, field) {
-      const k = Math.min(PICK_K, pool.length);
-      const chosen = new Set();
-      while (chosen.size < k) chosen.add(Math.floor(Math.random() * pool.length));
-      const cands = Array.from(chosen).map(i => pool[i]);
-      const min = Math.min(...cands.map(w => w[field] || 0));
-      const lows = cands.filter(w => (w[field] || 0) === min);
-      return lows[Math.floor(Math.random() * lows.length)];
+      const min = Math.min(...pool.map(w => w[field] || 0));
+      const unseen = pool.filter(w => (w[field] || 0) === min);
+      return { word: unseen[Math.floor(Math.random() * unseen.length)], round: min + 1 };
     }
 
     function showStudyWord() {
-      document.getElementById('studyStatsTop').textContent = currentStudyWord.space;
+      document.getElementById('studyStatsTop').textContent = `${currentStudyWord.space} | ${currentRound}회독 중`;
       document.getElementById('studyWord').textContent = currentStudyWord.eng;
       document.getElementById('studyMeaning').textContent = currentStudyWord.kor;
       chkReview.checked = !!currentStudyWord.review;
@@ -494,8 +510,11 @@
 
       if (nextPlannedWord && pool.includes(nextPlannedWord)) {
         selectedWord = nextPlannedWord;
+        currentRound = nextPlannedRound;
       } else {
-        selectedWord = pickWord(pool, field);
+        const picked = pickWord(pool, field);
+        selectedWord = picked.word;
+        currentRound = picked.round;
         selectedWord[field] = (selectedWord[field] || 0) + 1;
       }
       nextPlannedWord = null;
@@ -504,7 +523,7 @@
       saveData();
       showStudyWord();
 
-      document.getElementById('studyHint').textContent = previousStudyState ? "상단 터치: 이전 단어 | 화면 터치: 뜻 공개" : "화면을 터치하면 뜻이 공개됩니다";
+      document.getElementById('studyHint').textContent = previousStudyState ? "좌측 터치: 이전 단어 | 우측 터치: 뜻 공개" : "화면을 터치하면 뜻이 공개됩니다";
       isMeaningVisible = false;
     }
 
@@ -514,7 +533,9 @@
       if (!word) { previousStudyState = null; return; }
 
       nextPlannedWord = currentStudyWord;
+      nextPlannedRound = currentRound;
       currentStudyWord = word;
+      currentRound = previousStudyState.round;
       showStudyWord();
 
       document.getElementById('studyMeaning').classList.add('visible');
@@ -535,20 +556,22 @@
       if (!currentStudyWord) return;
 
       const rect = e.currentTarget.getBoundingClientRect();
-      const clickY = e.clientY - rect.top;
+      const clickX = e.clientX - rect.left;
 
-      if (clickY < rect.height * 0.30 && previousStudyState && !isMeaningVisible) {
+      // 영단어만 보이는 상태에서 좌측 터치 = 이전 단어(뜻 포함) 다시 보기
+      if (clickX < rect.width * PREV_ZONE_RATIO && previousStudyState && !isMeaningVisible) {
         goPreviousStudyWord();
         return;
       }
 
+      // 우측(그 외) 터치 = 뜻 공개 -> 다음 단어
       if (!isMeaningVisible) {
         document.getElementById('studyMeaning').classList.add('visible');
         reviewBox.classList.add('visible');
         document.getElementById('studyHint').textContent = "화면을 터치하면 다음 단어로 넘어갑니다";
         isMeaningVisible = true;
       } else {
-        previousStudyState = { wordId: currentStudyWord.id };
+        previousStudyState = { wordId: currentStudyWord.id, round: currentRound };
         nextStudyWord();
       }
     });
@@ -805,7 +828,6 @@
       document.getElementById('dupListModal').classList.remove('active');
     }
 
-    // 수정된 중복 일괄 삭제 함수 (id 기준)
     function deleteDuplicates() {
       const groups = getDuplicateGroups();
       const total = groups.reduce((n, g) => n + g.remove.length, 0);
@@ -873,7 +895,6 @@
       }
     }
 
-    // 수정된 단어 수정 모달 내 삭제 함수
     function deleteCurrentWord() {
       if (confirm('이 단어를 삭제하시겠습니까?')) {
         vocab = vocab.filter(v => v.id !== editingId);
