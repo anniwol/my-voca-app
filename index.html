@@ -95,7 +95,11 @@
     /* 복습 필요 토글: 기존 대비 1.5배, 우측 하단 */
     .review-check { position: absolute; bottom: 70px; right: 24px; display: none; align-items: center; gap: 15px; font-size: 1.8rem; font-weight: 600; cursor: pointer; }
     .review-check.visible { display: flex; }
-    .review-check input { width: 36px; height: 36px; accent-color: var(--accent-color); cursor: pointer; }
+    .review-check input { display: none; }
+    .review-slider { width: 66px; height: 36px; background-color: #ccc; border-radius: 18px; position: relative; transition: 0.3s; flex-shrink: 0; }
+    .review-slider::before { content: ""; position: absolute; width: 30px; height: 30px; border-radius: 50%; background-color: white; top: 3px; left: 3px; transition: 0.3s; }
+    .review-check input:checked + .review-slider { background-color: var(--accent-color); }
+    .review-check input:checked + .review-slider::before { transform: translateX(30px); }
     .study-hint { position: absolute; bottom: 24px; font-size: 0.85rem; color: var(--text-sub); }
 
     .form-group { margin-bottom: 16px; }
@@ -192,8 +196,9 @@
         <div class="meaning-display" id="studyMeaning">뜻</div>
 
         <label class="review-check" id="reviewBox" onclick="event.stopPropagation();">
+          <span>복습필요</span>
           <input type="checkbox" id="chkReview">
-          <span>복습 필요</span>
+          <span class="review-slider"></span>
         </label>
 
         <div class="study-hint" id="studyHint">화면을 터치하세요</div>
