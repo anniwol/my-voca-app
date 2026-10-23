@@ -64,7 +64,7 @@
 
     .sub-container { padding: 20px 16px; overflow-y: auto; max-width: 500px; margin: 0 auto; width: 100%; flex: 1; }
 
-    /* 탭 헤더 */
+    /* 탭 헤더 (공간별 / 태그별) */
     .tab-header { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 12px; }
     .tab-btn { flex: 1; padding: 12px; text-align: center; font-weight: 600; font-size: 0.95rem; color: var(--text-sub); cursor: pointer; border-bottom: 2px solid transparent; }
     .tab-btn.active { color: var(--accent-color); border-bottom-color: var(--accent-color); }
@@ -87,6 +87,7 @@
     .space-card-header { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
     .space-card-title { font-size: 1.05rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
     .space-card-title input { width: 18px; height: 18px; accent-color: var(--accent-color); }
+    .space-card-meta { font-size: 0.85rem; color: var(--text-sub); margin-left: 26px; }
     
     .progress-box { margin-top: 4px; }
     .progress-info { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 4px; }
@@ -123,72 +124,50 @@
       align-items: center;
     }
 
-    .word-display-group { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-    .word-display { font-size: 2.5rem; font-weight: 700; word-break: break-word; color: var(--text-color); }
-    .btn-synonym-toggle { background: none; border: none; font-size: 1.4rem; color: var(--text-sub); cursor: pointer; padding: 4px; }
+    .word-display { font-size: 2.8rem; font-weight: 700; word-break: break-word; color: var(--text-color); margin-bottom: 16px; }
 
-    .meaning-display { font-size: 1.6rem; color: var(--accent-color); min-height: 2.2rem; visibility: hidden; word-break: break-word; font-weight: 500; margin-bottom: 12px; }
+    .meaning-display { font-size: 1.8rem; color: var(--accent-color); min-height: 2.5rem; visibility: hidden; word-break: break-word; font-weight: 500; margin-bottom: 16px; }
     .meaning-display.visible { visibility: visible; }
 
-    .synonym-list-box {
-      display: none; width: 100%; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 10px;
-      margin-top: 8px; font-size: 0.85rem; color: var(--text-sub); text-align: left;
-    }
-    .synonym-list-box.open { display: block; }
-    .synonym-tag { display: inline-block; background: var(--bg-color); border: 1px solid var(--border-color); padding: 2px 6px; border-radius: 6px; margin: 2px; }
+    .tag-badge-group { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+    .tag-badge { font-size: 0.9rem; background-color: rgba(13, 110, 253, 0.1); color: var(--accent-color); padding: 4px 12px; border-radius: 12px; }
 
-    .tag-badge-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
-    .tag-badge { font-size: 0.8rem; background-color: rgba(13, 110, 253, 0.1); color: var(--accent-color); padding: 2px 10px; border-radius: 12px; }
-
-    /* 하단 제어 버튼 (기본적으로 숨김 상태, 뜻 공개 시 visible) */
+    /* 하단 제어 요소 (수정 버튼 / 복습 필요 토글 확장) */
     .btn-edit-in-study {
       position: absolute;
-      bottom: 16px;
-      left: 16px;
-      padding: 8px 16px;
-      border-radius: 20px;
+      bottom: 60px;
+      left: 20px;
+      padding: 10px 18px;
+      border-radius: 24px;
       border: 1px solid var(--border-color);
       background-color: var(--card-bg);
       color: var(--text-color);
-      font-size: 0.85rem;
+      font-size: 1rem;
       font-weight: 600;
       cursor: pointer;
       z-index: 10;
-      display: none;
+      display: flex;
       align-items: center;
-      gap: 4px;
-      box-shadow: 0 2px 5px var(--shadow-color);
+      gap: 6px;
+      box-shadow: 0 3px 8px var(--shadow-color);
     }
-    .btn-edit-in-study.visible { display: flex; }
 
-    .review-check {
-      position: absolute;
-      bottom: 16px;
-      right: 16px;
-      display: none;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      z-index: 10;
-    }
+    .review-check { position: absolute; bottom: 60px; right: 20px; display: none; align-items: center; gap: 12px; font-size: 1.1rem; font-weight: 600; cursor: pointer; }
     .review-check.visible { display: flex; }
     .review-check input { display: none; }
-    .review-slider { width: 44px; height: 24px; background-color: #ccc; border-radius: 12px; position: relative; transition: 0.3s; flex-shrink: 0; }
-    .review-slider::before { content: ""; position: absolute; width: 18px; height: 18px; border-radius: 50%; background-color: white; top: 3px; left: 3px; transition: 0.3s; }
+    .review-slider { width: 62px; height: 34px; background-color: #ccc; border-radius: 17px; position: relative; transition: 0.3s; flex-shrink: 0; }
+    .review-slider::before { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; background-color: white; top: 3px; left: 3px; transition: 0.3s; }
     .review-check input:checked + .review-slider { background-color: var(--accent-color); }
-    .review-check input:checked + .review-slider::before { transform: translateX(20px); }
+    .review-check input:checked + .review-slider::before { transform: translateX(28px); }
     
-    .study-hint { position: absolute; bottom: 50px; font-size: 0.8rem; color: var(--text-sub); pointer-events: none; }
+    .study-hint { position: absolute; bottom: 18px; font-size: 0.85rem; color: var(--text-sub); }
 
-    /* 폼 요소 */
+    /* 폼 요소 및 모달 */
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; color: var(--text-sub); }
     .form-input, .form-textarea, .form-select { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color); font-size: 0.95rem; outline: none; user-select: text; }
     .form-textarea { height: 90px; resize: none; }
     .btn-primary { width: 100%; padding: 12px; border-radius: 10px; border: none; background-color: var(--accent-color); color: white; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
-
     .space-manage-box { display: flex; gap: 8px; }
     .accordion-toggle { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin: 12px 0; }
     .accordion-content { display: none; padding-bottom: 12px; }
@@ -207,21 +186,19 @@
     .folder-card-count { font-size: 0.8rem; font-weight: 600; color: var(--accent-color); background-color: rgba(13, 110, 253, 0.15); padding: 2px 8px; border-radius: 12px; }
 
     .word-item { background-color: var(--card-bg); padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-    .word-item-info { display: flex; flex-direction: column; gap: 4px; user-select: text; flex: 1; }
+    .word-item-info { display: flex; flex-direction: column; gap: 4px; user-select: text; }
     .word-item-eng { font-size: 1.05rem; font-weight: 600; }
     .word-item-kor { font-size: 0.9rem; color: var(--text-sub); }
     .word-item-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 0.8rem; }
     .word-review-badge { color: var(--accent-color); font-weight: 600; }
     .word-space-badge { background-color: var(--border-color); color: var(--text-sub); padding: 2px 6px; border-radius: 6px; }
-
     .empty-msg { text-align: center; color: var(--text-sub); padding: 40px 0; font-size: 0.95rem; }
 
-    /* 모달 */
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 200; padding: 20px; }
     .modal-overlay.active { display: flex; }
-    .modal-box { background-color: var(--card-bg); border-radius: 16px; width: 100%; max-width: 400px; padding: 20px; display: flex; flex-direction: column; gap: 12px; max-height: 85vh; overflow-y: auto; }
+    .modal-box { background-color: var(--card-bg); border-radius: 16px; width: 100%; max-width: 400px; padding: 20px; display: flex; flex-direction: column; gap: 14px; max-height: 85vh; overflow-y: auto; }
     .modal-title { font-size: 1.1rem; font-weight: 600; }
-    .modal-btns { display: flex; gap: 8px; margin-top: 4px; }
+    .modal-btns { display: flex; gap: 8px; }
     .btn-secondary { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: none; color: var(--text-color); font-weight: 600; cursor: pointer; }
     .btn-danger { flex: 1; padding: 12px; border-radius: 8px; border: none; background-color: #dc3545; color: white; font-weight: 600; cursor: pointer; }
   </style>
@@ -257,7 +234,7 @@
       </div>
     </section>
 
-    <!-- 학습 조건 선택 -->
+    <!-- 학습 조건 선택 (공간 / 태그 탭) -->
     <section id="sec-study-select" class="section">
       <div class="sub-container study-select-container">
         <div class="tab-header">
@@ -294,24 +271,15 @@
         </div>
 
         <div class="study-card" onclick="event.stopPropagation();">
-          <div class="word-display-group">
-            <div class="word-display" id="studyWord">단어 불러오는 중...</div>
-            <button class="btn-synonym-toggle" id="btnSynonymToggle" onclick="toggleSynonyms()">&gt;</button>
-          </div>
-          
+          <div class="word-display" id="studyWord">단어 불러오는 중...</div>
           <div class="meaning-display" id="studyMeaning">뜻</div>
-
-          <div class="synonym-list-box" id="synonymListBox">
-            <strong>유의어:</strong> <span id="synonymText">없음</span>
-          </div>
-
           <div class="tag-badge-group" id="studyTagGroup"></div>
         </div>
 
-        <!-- 좌측 최하단 수정 버튼 (뜻 공개 시 함께 노출) -->
-        <button class="btn-edit-in-study" id="btnEditInStudy" onclick="event.stopPropagation(); openModal(currentStudyWord.id)">✏️ 수정</button>
+        <!-- 좌측 하단 수정 버튼 (크기 확대) -->
+        <button class="btn-edit-in-study" onclick="event.stopPropagation(); openModal(currentStudyWord.id)">✏️ 수정</button>
 
-        <!-- 우측 최하단 복습 필요 토글 (뜻 공개 시 함께 노출) -->
+        <!-- 우측 하단 복습 필요 토글 (크기 확대) -->
         <label class="review-check" id="reviewBox" onclick="event.stopPropagation();">
           <span>복습 필요</span>
           <input type="checkbox" id="chkReview">
@@ -332,8 +300,7 @@
         <div class="form-group">
           <input type="text" id="inputEng" class="form-input" placeholder="영단어" style="margin-bottom: 8px;">
           <input type="text" id="inputKor" class="form-input" placeholder="뜻" style="margin-bottom: 8px;">
-          <input type="text" id="inputSynonyms" class="form-input" placeholder="유의어 (쉼표 구분: harass, pester)" style="margin-bottom: 8px;">
-          <input type="text" id="inputTags" class="form-input" placeholder="태그 (쉼표 구분: 고급동사, 다의어)">
+          <input type="text" id="inputTags" class="form-input" placeholder="태그 (쉼표 구분: 괴롭히다, 고급동사)">
         </div>
         <button class="btn-primary" onclick="addSingleWord()">단어 저장하기</button>
 
@@ -388,7 +355,6 @@
       <div class="modal-title">단어 수정</div>
       <input type="text" id="editEng" class="form-input" placeholder="영단어">
       <input type="text" id="editKor" class="form-input" placeholder="뜻">
-      <input type="text" id="editSynonyms" class="form-input" placeholder="유의어 (쉼표 구분)">
       <input type="text" id="editTags" class="form-input" placeholder="태그 (쉼표 구분)">
       <div class="form-group" style="margin: 0;">
         <label>소속 공간</label>
@@ -421,10 +387,10 @@
     let selectedKeys = [];
     let studyMode = 'normal';
     
-    // 학습 히스토리 관리 구조
-    let studyHistory = [];  // { word, round, wasMeaningVisible }
-    let historyIndex = -1;  
     let currentStudyWord = null;
+    let currentRound = 1;
+    let isMeaningVisible = false;
+    let previousStudyState = null; // { word, round, wasMeaningVisible }
     let editingId = null;
 
     const themeSwitch = document.getElementById('themeSwitch');
@@ -432,7 +398,6 @@
     const headerTitle = document.getElementById('headerTitle');
     const chkReview = document.getElementById('chkReview');
     const reviewBox = document.getElementById('reviewBox');
-    const btnEditInStudy = document.getElementById('btnEditInStudy');
 
     function sortNames(arr) {
       return [...arr].sort((a, b) => a.localeCompare(b, 'ko-KR', { numeric: true, sensitivity: 'base' }));
@@ -443,7 +408,6 @@
         if (v.weight === undefined) v.weight = 0;
         if (v.rweight === undefined) v.rweight = 0;
         if (!Array.isArray(v.tags)) v.tags = v.tags ? [v.tags] : [];
-        if (!Array.isArray(v.synonyms)) v.synonyms = v.synonyms ? [v.synonyms] : [];
         v.review = !!v.review;
       });
 
@@ -452,28 +416,6 @@
         themeSwitch.checked = true;
       }
       saveData();
-      setupInputShortcuts();
-    }
-
-    function setupInputShortcuts() {
-      const addInputs = [
-        document.getElementById('inputEng'),
-        document.getElementById('inputKor'),
-        document.getElementById('inputSynonyms'),
-        document.getElementById('inputTags')
-      ];
-      addInputs.forEach((ipt, idx) => {
-        ipt.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            if (idx < addInputs.length - 1) {
-              addInputs[idx + 1].focus();
-            } else {
-              addSingleWord();
-            }
-          }
-        });
-      });
     }
 
     function saveData() {
@@ -633,10 +575,9 @@
         return;
       }
 
-      studyHistory = [];
-      historyIndex = -1;
       currentStudyWord = null;
-      
+      currentRound = 1;
+      previousStudyState = null;
       navTo('study-exec');
       headerTitle.textContent = mode === 'review' ? '복습 집중 학습' : '랜덤 학습';
       nextStudyWord();
@@ -664,79 +605,21 @@
     }
 
     function showStudyWord() {
-      if (!currentStudyWord) return;
-
       document.getElementById('studyWord').textContent = currentStudyWord.eng;
       document.getElementById('studyMeaning').textContent = currentStudyWord.kor;
       chkReview.checked = !!currentStudyWord.review;
 
-      const synList = currentStudyWord.synonyms || [];
-      const synBox = document.getElementById('synonymListBox');
-      synBox.classList.remove('open');
-      document.getElementById('btnSynonymToggle').textContent = '>';
-      
-      if (synList.length > 0) {
-        document.getElementById('synonymText').innerHTML = synList.map(s => `<span class="synonym-tag">${escapeHtml(s)}</span>`).join('');
-        document.getElementById('btnSynonymToggle').style.display = 'inline-block';
-      } else {
-        document.getElementById('synonymText').textContent = '등록된 유의어가 없습니다.';
-        document.getElementById('btnSynonymToggle').style.display = 'inline-block';
-      }
-
+      // 태그 세팅
       const tagGroup = document.getElementById('studyTagGroup');
       tagGroup.innerHTML = (currentStudyWord.tags || []).map(t => `<span class="tag-badge">#${escapeHtml(t)}</span>`).join('');
 
       updateStudyProgressBar();
     }
 
-    function toggleSynonyms() {
-      const synBox = document.getElementById('synonymListBox');
-      const open = synBox.classList.toggle('open');
-      document.getElementById('btnSynonymToggle').textContent = open ? 'v' : '>';
-    }
-
-    function renderStudyScreenFromHistory() {
-      const currentItem = studyHistory[historyIndex];
-      if (!currentItem) return;
-
-      currentStudyWord = currentItem.word;
-      showStudyWord();
-
-      const meaningElem = document.getElementById('studyMeaning');
-      if (currentItem.wasMeaningVisible) {
-        meaningElem.classList.add('visible');
-        reviewBox.classList.add('visible');
-        btnEditInStudy.classList.add('visible');
-      } else {
-        meaningElem.classList.remove('visible');
-        reviewBox.classList.remove('visible');
-        btnEditInStudy.classList.remove('visible');
-      }
-
-      updateStudyHintText();
-    }
-
-    function updateStudyHintText() {
-      const hintElem = document.getElementById('studyHint');
-      const currentItem = studyHistory[historyIndex];
-      const hasPrev = historyIndex > 0;
-
-      if (!currentItem.wasMeaningVisible) {
-        hintElem.textContent = hasPrev ? "좌측: 이전 단어 | 우측: 뜻 공개" : "화면을 터치하면 뜻이 공개됩니다";
-      } else {
-        hintElem.textContent = hasPrev ? "좌측: 이전 단어 | 우측: 다음 단어" : "화면을 터치하면 다음 단어로 넘어갑니다";
-      }
-    }
-
     function nextStudyWord() {
-      // 이미 지나온 히스토리가 존재하는 경우
-      if (historyIndex < studyHistory.length - 1) {
-        historyIndex++;
-        renderStudyScreenFromHistory();
-        return;
-      }
+      reviewBox.classList.remove('visible');
+      document.getElementById('studyMeaning').classList.remove('visible');
 
-      // 새 단어를 추첨해야 하는 경우
       const pool = getStudyPool();
       if (pool.length === 0) {
         document.getElementById('studyWord').textContent = "단어가 없습니다";
@@ -748,23 +631,38 @@
       const field = studyMode === 'review' ? 'rweight' : 'weight';
       const picked = pickWord(pool, field);
       
-      picked.word[field] = (picked.word[field] || 0) + 1;
+      currentStudyWord = picked.word;
+      currentRound = picked.round;
+      currentStudyWord[field] = (currentStudyWord[field] || 0) + 1;
+
       saveData();
+      showStudyWord();
 
-      studyHistory.push({
-        word: picked.word,
-        round: picked.round,
-        wasMeaningVisible: false
-      });
-      historyIndex = studyHistory.length - 1;
-
-      renderStudyScreenFromHistory();
+      document.getElementById('studyHint').textContent = previousStudyState ? "좌측: 전 단어 | 우측: 뜻 공개/다음 단어" : "화면을 터치하면 뜻이 공개됩니다";
+      isMeaningVisible = false;
     }
 
     function goPreviousStudyWord() {
-      if (historyIndex <= 0) return;
-      historyIndex--;
-      renderStudyScreenFromHistory();
+      if (!previousStudyState) return;
+
+      const prev = previousStudyState;
+      currentStudyWord = prev.word;
+      currentRound = prev.round;
+      
+      showStudyWord();
+
+      if (prev.wasMeaningVisible) {
+        document.getElementById('studyMeaning').classList.add('visible');
+        reviewBox.classList.add('visible');
+        isMeaningVisible = true;
+      } else {
+        document.getElementById('studyMeaning').classList.remove('visible');
+        reviewBox.classList.remove('visible');
+        isMeaningVisible = false;
+      }
+
+      document.getElementById('studyHint').textContent = "화면 우측을 터치하면 다음 단어로 넘어갑니다";
+      previousStudyState = null;
     }
 
     chkReview.addEventListener('change', () => {
@@ -774,26 +672,29 @@
     });
 
     document.getElementById('studyArea').addEventListener('click', (e) => {
-      if (!currentStudyWord || historyIndex < 0) return;
+      if (!currentStudyWord) return;
 
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const currentItem = studyHistory[historyIndex];
 
-      // 좌측 35% 터치 시 이전 단어로 이동
-      if (clickX < rect.width * PREV_ZONE_RATIO && historyIndex > 0) {
+      // 좌측 35% 터치 -> 이전 단어 (뜻 상태 보존)
+      if (clickX < rect.width * PREV_ZONE_RATIO && previousStudyState) {
         goPreviousStudyWord();
         return;
       }
 
-      // 우측 터치 시 뜻 공개 또는 다음 단어로 이동
-      if (!currentItem.wasMeaningVisible) {
-        currentItem.wasMeaningVisible = true;
+      // 우측 터치 -> 뜻 공개 / 다음 단어
+      if (!isMeaningVisible) {
         document.getElementById('studyMeaning').classList.add('visible');
         reviewBox.classList.add('visible');
-        btnEditInStudy.classList.add('visible');
-        updateStudyHintText();
+        document.getElementById('studyHint').textContent = "화면을 터치하면 다음 단어로 넘어갑니다";
+        isMeaningVisible = true;
       } else {
+        previousStudyState = {
+          word: currentStudyWord,
+          round: currentRound,
+          wasMeaningVisible: true
+        };
         nextStudyWord();
       }
     });
@@ -863,7 +764,6 @@
     }
 
     function parseCommaList(str) {
-      if (!str) return [];
       return str.split(',').map(s => s.trim()).filter(Boolean);
     }
 
@@ -871,18 +771,15 @@
       const space = document.getElementById('saveSpaceSelect').value;
       const eng = document.getElementById('inputEng').value.trim();
       const kor = document.getElementById('inputKor').value.trim();
-      const synonyms = parseCommaList(document.getElementById('inputSynonyms').value);
       const tags = parseCommaList(document.getElementById('inputTags').value);
 
       if (!space || !eng || !kor) { alert('공간, 영단어, 뜻을 입력해주세요.'); return; }
 
-      vocab.push({ id: Date.now() + Math.random(), eng, kor, space, synonyms, tags, weight: 0, rweight: 0, review: false });
+      vocab.push({ id: Date.now() + Math.random(), eng, kor, space, tags, weight: 0, rweight: 0, review: false });
       saveData();
       document.getElementById('inputEng').value = '';
       document.getElementById('inputKor').value = '';
-      document.getElementById('inputSynonyms').value = '';
       document.getElementById('inputTags').value = '';
-      document.getElementById('inputEng').focus();
       alert('단어가 저장되었습니다.');
     }
 
@@ -899,7 +796,7 @@
           const eng = parts[0].trim();
           const kor = parts.slice(1).join(':').trim();
           if (eng && kor) {
-            vocab.push({ id: Date.now() + Math.random(), eng, kor, space, synonyms: [], tags: [], weight: 0, rweight: 0, review: false });
+            vocab.push({ id: Date.now() + Math.random(), eng, kor, space, tags: [], weight: 0, rweight: 0, review: false });
             count++;
           }
         }
@@ -908,7 +805,7 @@
       if (count > 0) {
         saveData();
         document.getElementById('inputBatch').value = '';
-        alert(`${count}개 단어가 일괄 저장되었습니다.`);
+        alert(`${count}개 단어가 저장되었습니다.`);
       }
     }
 
@@ -929,14 +826,6 @@
         v.space.toLowerCase().includes(query) ||
         v.tags.some(t => t.toLowerCase().includes(query))
       ).sort((a,b) => a.eng.localeCompare(b.eng));
-
-      if (filtered.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'empty-msg';
-        empty.textContent = '검색 조건에 맞는 단어가 없습니다.';
-        vocabList.appendChild(empty);
-        return;
-      }
 
       filtered.forEach(item => {
         const div = document.createElement('div');
@@ -980,7 +869,6 @@
 
       document.getElementById('editEng').value = item.eng;
       document.getElementById('editKor').value = item.kor;
-      document.getElementById('editSynonyms').value = (item.synonyms || []).join(', ');
       document.getElementById('editTags').value = (item.tags || []).join(', ');
 
       const sel = document.getElementById('editWordSpaceSelect');
@@ -1005,7 +893,6 @@
       if (item) {
         item.eng = document.getElementById('editEng').value.trim();
         item.kor = document.getElementById('editKor').value.trim();
-        item.synonyms = parseCommaList(document.getElementById('editSynonyms').value);
         item.tags = parseCommaList(document.getElementById('editTags').value);
         item.space = document.getElementById('editWordSpaceSelect').value;
 
