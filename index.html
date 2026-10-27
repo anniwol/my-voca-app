@@ -258,6 +258,15 @@
     .modal-btns { display: flex; gap: 8px; margin-top: 4px; }
     .btn-secondary { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: none; color: var(--text-color); font-weight: 600; cursor: pointer; }
     .btn-danger { flex: 1; padding: 12px; border-radius: 8px; border: none; background-color: #dc3545; color: white; font-weight: 600; cursor: pointer; }
+  
+    .word-display-group { position: relative; width: 100%; justify-content: center; margin-bottom: 0; }
+    .meaning-display { position: absolute; top: 100%; left: 0; right: 0; margin: 14px 0 0; word-break: keep-all; overflow-wrap: break-word; line-height: 1.45; }
+    .tag-badge-group { visibility: hidden; min-height: 1.6rem; margin-top: 6px; }
+    .tag-badge-group.visible { visibility: visible; }
+    .chk-row { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; padding: 6px 2px; cursor: pointer; }
+    .chk-row input { width: 18px; height: 18px; accent-color: var(--accent-color); flex-shrink: 0; }
+    .dup-group { border: 1px solid var(--border-color); border-radius: 10px; padding: 6px 10px; }
+    .dup-eng { font-weight: 700; margin-bottom: 2px; }
   </style>
 </head>
 <body>
@@ -342,17 +351,14 @@
             <div class="progress-bar-fill" id="studyProgressBar"></div>
           </div>
           <div class="study-space-label" id="studySpaceText"></div>
+          <div class="tag-badge-group" id="studyTagGroup"></div>
         </div>
 
         <div class="study-card">
           <div class="word-display-group">
             <div class="word-display" id="studyWord">단어 불러오는 중...</div>
+            <div class="meaning-display" id="studyMeaning">뜻</div>
           </div>
-          
-          <div class="meaning-display" id="studyMeaning">뜻</div>
-
-
-          <div class="tag-badge-group" id="studyTagGroup"></div>
         </div>
 
         <!-- 좌측 최하단 수정 버튼 (뜻 공개 시 함께 노출) -->
@@ -468,6 +474,45 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="exportModal">
+    <div class="modal-box">
+      <div class="modal-title">내보낼 공간 선택</div>
+      <div id="exportSpaceList" style="overflow-y:auto; max-height:40vh;"></div>
+      <label class="chk-row"><input type="checkbox" id="expTags"> 태그 포함</label>
+      <label class="chk-row"><input type="checkbox" id="expReview"> 복습 표시 포함</label>
+      <div class="modal-btns">
+        <button class="btn-secondary" onclick="toggleAllExport()">전체 선택</button>
+        <button class="btn-secondary" onclick="document.getElementById('exportModal').classList.remove('active')">취소</button>
+        <button class="btn-primary" style="flex:1" onclick="doExport()">내보내기</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="dupModal">
+    <div class="modal-box">
+      <div class="modal-title">🔁 중복 단어 (영단어가 같은 단어)</div>
+      <div id="dupList" onchange="dupUpdate()" style="overflow-y:auto; display:flex; flex-direction:column; gap:8px; max-height:50vh;"></div>
+      <div class="modal-btns" style="flex-wrap:wrap;">
+        <button class="btn-secondary" onclick="dupSelectAll()">전체 선택/해제</button>
+        <button class="btn-secondary" onclick="dupKeepOne()">묶음마다 1개 남기기</button>
+      </div>
+      <div class="modal-btns">
+        <button class="btn-secondary" onclick="document.getElementById('dupModal').classList.remove('active')">닫기</button>
+        <button class="btn-danger" id="dupDelBtn" onclick="dupDelete()">선택 삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="confirmModal" style="z-index: 250;">
+    <div class="modal-box">
+      <div class="modal-title" id="confirmText" style="white-space: pre-line; font-size: 1rem;"></div>
+      <div class="modal-btns">
+        <button class="btn-secondary" id="confirmNo">취소</button>
+        <button class="btn-danger" id="confirmYes">확인</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -510,13 +555,19 @@
       return [...arr].sort((a, b) => a.localeCompare(b, 'ko-KR', { numeric: true, sensitivity: 'base' }));
     }
 
+    let _idc = 0;
+    function newId() { return Date.now().toString(36) + '-' + (++_idc).toString(36) + '-' + Math.random().toString(36).slice(2, 7); }
+
     function normalizeVocab() {
+      const seenIds = new Set();
       vocab.forEach(v => {
         if (v.weight === undefined) v.weight = 0;
         if (v.rweight === undefined) v.rweight = 0;
         if (!Array.isArray(v.tags)) v.tags = v.tags ? [v.tags] : [];
         delete v.synonyms; // 유의어 데이터 제거
         v.review = !!v.review;
+        if (v.id === undefined || seenIds.has(v.id)) v.id = newId();
+        seenIds.add(v.id);
       });
     }
 
@@ -678,11 +729,24 @@
       document.getElementById('btnStartStudy').disabled = !has;
     }
 
-    function resetSelectedData() {
+    // 브라우저 confirm()은 일부 환경에서 막혀 조용히 무시되므로 앱 안의 확인 창을 사용
+    function askConfirm(msg, yesLabel) {
+      return new Promise(resolve => {
+        const m = document.getElementById('confirmModal'), yes = document.getElementById('confirmYes'), no = document.getElementById('confirmNo');
+        document.getElementById('confirmText').textContent = msg;
+        yes.textContent = yesLabel || '확인';
+        const done = v => { m.classList.remove('active'); yes.onclick = no.onclick = null; resolve(v); };
+        yes.onclick = () => done(true);
+        no.onclick = () => done(false);
+        m.classList.add('active');
+      });
+    }
+
+    async function resetSelectedData() {
       const selected = Array.from(document.querySelectorAll('#studySelectList input[type="checkbox"]:checked')).map(cb => cb.value);
       if (selected.length === 0) return;
 
-      if (confirm('선택한 항목 단어들의 회독 기록을 초기화하시겠습니까?')) {
+      if (await askConfirm('선택한 항목 단어들의 회독 기록을 초기화하시겠습니까?', '초기화')) {
         vocab.forEach(item => {
           const match = currentSelectTab === 'space' ? selected.includes(item.space) : item.tags.some(t => selected.includes(t));
           if (match) { item.weight = 0; item.rweight = 0; }
@@ -717,7 +781,7 @@
     function startStudyExecution(mode) {
       studyScope = 'select';
       document.getElementById('studyArea').classList.remove('random-mode');
-      studyMode = mode;
+      studyMode = mode; rs = {};
       selectedKeys = Array.from(document.querySelectorAll('#studySelectList input[type="checkbox"]:checked')).map(cb => cb.value);
 
       if (getStudyPool().length === 0) {
@@ -734,24 +798,31 @@
       nextStudyWord();
     }
 
-    function pickWord(pool, field) {
-      const min = Math.min(...pool.map(w => w[field] || 0));
-      const unseen = pool.filter(w => (w[field] || 0) === min);
-      return { word: unseen[Math.floor(Math.random() * unseen.length)], round: min + 1 };
+    let rs = {}; // 복습 집중 학습 임시 회독 (저장 안 함)
+    function syncRs(pool) {
+      if (studyMode !== 'review') return;
+      const have = pool.filter(w => w.id in rs).map(w => rs[w.id]);
+      const base = have.length ? Math.min(...have) : 0;
+      pool.forEach(w => { if (!(w.id in rs)) rs[w.id] = base; });
+    }
+    function cnt(w) { return studyMode === 'review' ? (rs[w.id] || 0) : (w.weight || 0); }
+    function bump(w) { if (studyMode === 'review') rs[w.id] = cnt(w) + 1; else w.weight = (w.weight || 0) + 1; }
+
+    function pickWord(pool) {
+      syncRs(pool);
+      const min = Math.min(...pool.map(cnt));
+      let c = pool.filter(w => cnt(w) === min);
+      if (c.length > 1 && currentStudyWord) c = c.filter(w => w.id !== currentStudyWord.id); // 직전 단어 제외
+      return { word: c[Math.floor(Math.random() * c.length)], round: min + 1 };
     }
 
     function updateStudyProgressBar() {
-      const pool = getStudyPool();
-      if (pool.length === 0) return;
-
-      const field = studyMode === 'review' ? 'rweight' : 'weight';
-      const minW = Math.min(...pool.map(v => v[field] || 0));
-      const doneCount = pool.filter(v => (v[field] || 0) > minW).length;
-      const total = pool.length;
-      const percent = Math.round((doneCount / total) * 100);
-
-      document.getElementById('studyRoundText').textContent = `${minW + 1}회독 진행 중`;
-      document.getElementById('studyRatioText').textContent = `${doneCount} / ${total} (${percent}%)`;
+      const it = studyHistory[historyIndex];
+      if (!it || !it.total) return;
+      const shown = it.done + (it.wasMeaningVisible ? 1 : 0); // 뜻을 공개해야 1 올라감
+      const percent = Math.round((shown / it.total) * 100);
+      document.getElementById('studyRoundText').textContent = `${studyMode === 'review' ? '복습 ' : ''}${it.round}회독 진행 중`;
+      document.getElementById('studyRatioText').textContent = `${shown} / ${it.total} (${percent}%)`;
       document.getElementById('studyProgressBar').style.width = `${percent}%`;
     }
 
@@ -759,7 +830,9 @@
       if (!currentStudyWord) return;
 
       document.getElementById('studyWord').textContent = currentStudyWord.eng;
-      document.getElementById('studyMeaning').textContent = currentStudyWord.kor;
+      { const m = document.getElementById('studyMeaning'), k = currentStudyWord.kor;
+        m.textContent = k.replace(/;(?=\S)/g, ';\u200b'); // ; 뒤에서도 필요할 때만 줄바꿈
+        m.style.fontSize = k.length > 80 ? '1.05rem' : k.length > 40 ? '1.3rem' : ''; }
       chkReview.checked = !!currentStudyWord.review;
 
       document.getElementById('studySpaceText').textContent = currentStudyWord.space || '공간 없음';
@@ -780,10 +853,12 @@
       const meaningElem = document.getElementById('studyMeaning');
       if (currentItem.wasMeaningVisible) {
         meaningElem.classList.add('visible');
+        document.getElementById('studyTagGroup').classList.add('visible');
         reviewBox.classList.add('visible');
         btnEditInStudy.classList.add('visible');
       } else {
         meaningElem.classList.remove('visible');
+        document.getElementById('studyTagGroup').classList.remove('visible');
         reviewBox.classList.remove('visible');
         btnEditInStudy.classList.remove('visible');
       }
@@ -821,24 +896,24 @@
       }
 
       const field = studyMode === 'review' ? 'rweight' : 'weight';
-      let picked;
+      let picked, done = 0;
       let completedRound = 0;
       if (studyScope === 'all') {
         let cand = pool;
         if (pool.length > 1 && currentStudyWord) cand = pool.filter(w => w.id !== currentStudyWord.id);
         picked = { word: cand[Math.floor(Math.random() * cand.length)], round: 0 };
       } else {
-        picked = pickWord(pool, field);
-        picked.word[field] = (picked.word[field] || 0) + 1;
+        picked = pickWord(pool);
+        bump(picked.word);
         saveData();
-        const minAfter = Math.min(...pool.map(w => w[field] || 0));
+        const minAfter = Math.min(...pool.map(cnt)); done = Math.max(0, pool.filter(w => cnt(w) >= picked.round).length - 1); // 이번 회독에서 이미 본 단어 수
         if (minAfter > picked.round - 1) completedRound = picked.round;
       }
 
       studyHistory.push({
         word: picked.word,
         round: picked.round,
-        completedRound,
+        completedRound, done, total: pool.length,
         wasMeaningVisible: false
       });
       if (studyHistory.length > 2) studyHistory.shift(); // 직전 단어 1개까지만 보관
@@ -856,6 +931,7 @@
     chkReview.addEventListener('change', () => {
       if (!currentStudyWord) return;
       currentStudyWord.review = chkReview.checked;
+      if (!chkReview.checked) delete rs[currentStudyWord.id];
       saveData();
     });
 
@@ -875,7 +951,9 @@
       // 우측 터치 시 뜻 공개 또는 다음 단어로 이동
       if (!currentItem.wasMeaningVisible) {
         currentItem.wasMeaningVisible = true;
+        updateStudyProgressBar();
         document.getElementById('studyMeaning').classList.add('visible');
+        document.getElementById('studyTagGroup').classList.add('visible');
         reviewBox.classList.add('visible');
         btnEditInStudy.classList.add('visible');
         updateStudyHintText();
@@ -941,12 +1019,12 @@
       }
     }
 
-    function deleteSpace() {
+    async function deleteSpace() {
       const target = document.getElementById('editSpaceSelect').value;
       if (!target) return;
 
       const wordCount = vocab.filter(v => v.space === target).length;
-      if (confirm(`'${target}' 공간을 삭제하시겠습니까?\n${wordCount > 0 ? `안에 있는 단어 ${wordCount}개도 함께 삭제됩니다.` : '비어 있는 공간입니다.'}`)) {
+      if (await askConfirm(`'${target}' 공간을 삭제하시겠습니까?\n${wordCount > 0 ? `안에 있는 단어 ${wordCount}개도 함께 삭제됩니다.` : '비어 있는 공간입니다.'}`, '삭제')) {
         spaces = spaces.filter(s => s !== target);
         vocab = vocab.filter(v => v.space !== target);
         saveData();
@@ -968,7 +1046,7 @@
 
       if (!space || !eng || !kor) { showToast('공간, 영단어, 뜻을 입력해주세요.'); return; }
 
-      vocab.push({ id: Date.now() + Math.random(), eng, kor, space, tags, weight: 0, rweight: 0, review: false });
+      vocab.push({ id: newId(), eng, kor, space, tags, weight: 0, rweight: 0, review: false });
       saveData();
       document.getElementById('inputEng').value = '';
       document.getElementById('inputKor').value = '';
@@ -1000,7 +1078,7 @@
         if (existing.has(key)) { dup++; return; }
         existing.add(key);
 
-        vocab.push({ id: Date.now() + Math.random(), eng, kor, space, tags: [...tags], weight: 0, rweight: 0, review: false });
+        vocab.push({ id: newId(), eng, kor, space, tags: [...tags], weight: 0, rweight: 0, review: false });
         count++;
       });
 
@@ -1047,6 +1125,11 @@
       revCard.onclick = openReviewModal;
       revCard.innerHTML = `<div class="folder-card-title">🔖 복습이 필요한 단어</div><div class="folder-card-count">${vocab.filter(v => v.review).length}개</div>`;
       vocabList.appendChild(revCard);
+      const dupCard = document.createElement('div');
+      dupCard.className = 'folder-card';
+      dupCard.onclick = openDupModal;
+      dupCard.innerHTML = `<div class="folder-card-title">🔁 중복 단어</div><div class="folder-card-count">${dupGroups().reduce((a, g) => a + g.length, 0)}개</div>`;
+      vocabList.appendChild(dupCard);
 
       const filtered = vocab.filter(v =>
         (!listReviewOnly || v.review) &&
@@ -1149,8 +1232,8 @@
       }
     }
 
-    function deleteCurrentWord() {
-      if (confirm('이 단어를 삭제하시겠습니까?')) {
+    async function deleteCurrentWord() {
+      if (await askConfirm('이 단어를 삭제하시겠습니까?', '삭제')) {
         const delId = editingId;
         vocab = vocab.filter(v => v.id !== delId);
         saveData();
@@ -1168,64 +1251,149 @@
     }
 
     function exportData() {
-      if (spaces.length === 0 && vocab.length === 0) { showToast('내보낼 데이터가 없습니다.'); return; }
-      const payload = { app: 'vocab-app', version: 1, exportedAt: new Date().toISOString(), spaces, vocab };
+      if (vocab.length === 0) { showToast('내보낼 데이터가 없습니다.'); return; }
+      const list = document.getElementById('exportSpaceList');
+      const names = sortNames(spaces);
+      if (vocab.some(v => !v.space)) names.push('');
+      list.innerHTML = names.map(n => `<label class="chk-row"><input type="checkbox" value="${escapeHtml(n)}" checked><span style="flex:1">${escapeHtml(n || '(공간 없음)')}</span><span style="font-size:0.8rem;color:var(--text-sub)">${vocab.filter(v => v.space === n).length}단어</span></label>`).join('');
+      document.getElementById('expTags').checked = false;
+      document.getElementById('expReview').checked = false;
+      document.getElementById('exportModal').classList.add('active');
+    }
+
+    function toggleAllExport() {
+      const cs = [...document.querySelectorAll('#exportSpaceList input')];
+      const all = cs.every(c => c.checked);
+      cs.forEach(c => c.checked = !all);
+    }
+
+    function doExport() {
+      const sel = [...document.querySelectorAll('#exportSpaceList input:checked')].map(c => c.value);
+      if (!sel.length) { showToast('내보낼 공간을 선택해주세요.'); return; }
+      const wt = document.getElementById('expTags').checked, wr = document.getElementById('expReview').checked;
+      const words = vocab.filter(v => sel.includes(v.space)).map(v => {
+        const o = { eng: v.eng, kor: v.kor, space: v.space };
+        if (wt) o.tags = v.tags;
+        if (wr) o.review = !!v.review;
+        return o;
+      });
+      const payload = { app: 'vocab-app', version: 2, exportedAt: new Date().toISOString(), spaces: sel.filter(Boolean), vocab: words };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const d = new Date();
       const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `vocab-backup-${ymd}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      a.href = url; a.download = `vocab-backup-${ymd}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      showToast(`공간 ${spaces.length}개, 단어 ${vocab.length}개를 내보냈습니다.`);
+      document.getElementById('exportModal').classList.remove('active');
+      showToast(`공간 ${sel.filter(Boolean).length}개, 단어 ${words.length}개를 내보냈습니다.`);
     }
 
     function importData(e) {
       const file = e.target.files && e.target.files[0];
       e.target.value = '';
       if (!file) return;
-
       const reader = new FileReader();
       reader.onerror = () => showToast('파일을 읽지 못했습니다.');
       reader.onload = () => {
         try {
           const data = JSON.parse(reader.result);
           if (!data || !Array.isArray(data.vocab)) throw new Error('invalid');
+          const key = (sp, en, ko) => [sp, en, ko].map(x => x.trim().toLowerCase()).join('\u0000');
+          const idx = new Map(vocab.map(v => [key(v.space || '', v.eng, v.kor), v]));
+          let added = 0, upd = 0, same = 0;
+          (Array.isArray(data.spaces) ? data.spaces : []).forEach(sp => { if (typeof sp === 'string' && sp.trim() && !spaces.includes(sp.trim())) spaces.push(sp.trim()); });
 
-          const newVocab = data.vocab
-            .filter(v => v && typeof v.eng === 'string' && typeof v.kor === 'string' && v.eng.trim() && v.kor.trim())
-            .map(v => ({
-              id: v.id !== undefined ? v.id : Date.now() + Math.random(),
-              eng: v.eng.trim(),
-              kor: v.kor.trim(),
-              space: typeof v.space === 'string' ? v.space : '',
-              tags: Array.isArray(v.tags) ? v.tags.map(String) : [],
-              weight: Number(v.weight) || 0,
-              rweight: Number(v.rweight) || 0,
-              review: !!v.review
-            }));
-
-          const spaceSet = new Set(Array.isArray(data.spaces) ? data.spaces.filter(x => typeof x === 'string' && x) : []);
-          newVocab.forEach(v => { if (v.space) spaceSet.add(v.space); });
-          const newSpaces = Array.from(spaceSet);
-
-          if (!confirm(`백업 파일: 공간 ${newSpaces.length}개, 단어 ${newVocab.length}개\n현재 저장된 데이터가 모두 이 내용으로 교체됩니다. 계속할까요?`)) return;
-
-          spaces = newSpaces;
-          vocab = newVocab;
-          normalizeVocab();
+          data.vocab.forEach(v => {
+            if (!v || typeof v.eng !== 'string' || typeof v.kor !== 'string' || !v.eng.trim() || !v.kor.trim()) return;
+            const sp = typeof v.space === 'string' ? v.space.trim() : '', eng = v.eng.trim(), kor = v.kor.trim();
+            const hasTags = Array.isArray(v.tags), hasRev = 'review' in v;
+            const ex = idx.get(key(sp, eng, kor));
+            if (ex) { // 공간·영단어·뜻이 모두 같음 → 덮어쓰기
+              let ch = false;
+              if (hasTags) { const add = [...new Set(v.tags.map(String))].filter(x => !ex.tags.includes(x)); if (add.length) { ex.tags = ex.tags.concat(add); ch = true; } }
+              if (hasRev && v.review && !ex.review) { ex.review = true; ch = true; } // 복습 표시가 다르면 ON
+              ch ? upd++ : same++;
+            } else { // 뜻이나 공간이 다르면 일단 저장 (중복 단어 칸에서 정리)
+              if (sp && !spaces.includes(sp)) spaces.push(sp);
+              const w = { id: newId(), eng, kor, space: sp, tags: hasTags ? v.tags.map(String) : [], weight: 0, rweight: 0, review: hasRev && !!v.review };
+              vocab.push(w); idx.set(key(sp, eng, kor), w); added++;
+            }
+          });
           saveData();
           renderSpaceOptions();
-          showToast('데이터를 가져왔습니다.');
+          showToast(`가져오기 완료: 새 단어 ${added} · 변경 ${upd} · 동일 ${same}` + (added ? ` (중복 확인: 저장 단어 확인 > 중복 단어)` : ''));
         } catch (err) {
           showToast('올바른 백업 파일이 아닙니다.');
         }
       };
       reader.readAsText(file);
+    }
+
+    function dupGroups() {
+      const m = new Map();
+      vocab.forEach(v => { const k = v.eng.trim().toLowerCase(); if (!m.has(k)) m.set(k, []); m.get(k).push(v); });
+      return [...m.values()].filter(g => g.length > 1).sort((a, b) => a[0].eng.localeCompare(b[0].eng));
+    }
+
+    function openDupModal() {
+      const box = document.getElementById('dupList');
+      const gs = dupGroups();
+      box.innerHTML = gs.length ? '' : '<div class="empty-msg">중복 단어가 없습니다.</div>';
+      gs.forEach(g => {
+        const d = document.createElement('div');
+        d.className = 'dup-group';
+        d.innerHTML = `<div class="dup-eng">${escapeHtml(g[0].eng)}</div>` + g.map(w => `<label class="chk-row"><input type="checkbox" value="${escapeHtml(String(w.id))}"><span style="flex:1">${escapeHtml(w.kor)}</span>${w.review ? '<span class="word-review-badge">🔖</span>' : ''}<span class="word-space-badge">${escapeHtml(w.space || '공간 없음')}</span></label>`).join('');
+        box.appendChild(d);
+      });
+      document.getElementById('dupModal').classList.add('active');
+      dupUpdate();
+    }
+
+    let dupTimer = null;
+    function dupUpdate() { // 선택이 바뀌면 삭제 확인 상태를 풀고 개수를 표시
+      clearTimeout(dupTimer);
+      const btn = document.getElementById('dupDelBtn');
+      delete btn.dataset.armed;
+      const n = document.querySelectorAll('#dupList input:checked').length;
+      btn.textContent = n ? `선택 삭제 (${n})` : '선택 삭제';
+    }
+
+    function dupSelectAll() {
+      const cs = [...document.querySelectorAll('#dupList input')];
+      const all = cs.length && cs.every(c => c.checked);
+      cs.forEach(c => c.checked = !all);
+      dupUpdate();
+    }
+
+    function dupKeepOne() {
+      document.querySelectorAll('#dupList .dup-group').forEach(g => g.querySelectorAll('input').forEach((c, i) => c.checked = i > 0));
+      dupUpdate();
+      const n = document.querySelectorAll('#dupList input:checked').length;
+      showToast(n ? `${n}개를 선택했어요. 아래 '선택 삭제'를 눌러야 지워집니다.` : '정리할 중복이 없습니다.');
+    }
+
+    function dupDelete() { // 브라우저 확인창 대신, 버튼을 두 번 눌러 삭제
+      try {
+        const ids = new Set([...document.querySelectorAll('#dupList input:checked')].map(c => c.value));
+        if (!ids.size) { showToast('삭제할 단어를 먼저 체크해주세요.'); return; }
+        const btn = document.getElementById('dupDelBtn');
+        if (!btn.dataset.armed) {
+          btn.dataset.armed = '1';
+          btn.textContent = `한 번 더 누르면 ${ids.size}개 삭제`;
+          clearTimeout(dupTimer);
+          dupTimer = setTimeout(dupUpdate, 4000);
+          return;
+        }
+        vocab = vocab.filter(v => !ids.has(String(v.id)));
+        saveData();
+        document.getElementById('dupModal').classList.remove('active');
+        renderList();
+        showToast(`${ids.size}개 단어를 삭제했습니다.`);
+      } catch (err) {
+        showToast('삭제 중 오류가 발생했습니다: ' + err.message);
+      }
     }
 
     function escapeHtml(str) {
