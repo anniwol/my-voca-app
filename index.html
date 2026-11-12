@@ -2,8 +2,20 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>단어장 앱</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#f8f9fa" id="metaTheme">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="단어장">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon-192.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <title>단어장</title>
+  <script>
+    // 화면이 그려지기 전에 테마를 먼저 적용 (깜빡임 방지)
+    try { document.documentElement.setAttribute('data-theme', localStorage.getItem('vocab3_theme') || 'light'); } catch (e) {}
+  </script>
   <style>
     :root {
       --bg-color: #f8f9fa;
@@ -11,10 +23,15 @@
       --text-color: #212529;
       --text-sub: #6c757d;
       --accent-color: #0d6efd;
+      --accent-soft: rgba(13, 110, 253, 0.1);
       --border-color: #e6e9ed;
+      --border-strong: #c3cad1;
       --input-bg: #ffffff;
       --shadow-color: rgba(0, 0, 0, 0.09);
       --progress-bg: #e9ecef;
+      --danger: #dc3545;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
     [data-theme="dark"] {
       --bg-color: #121212;
@@ -22,32 +39,46 @@
       --text-color: #f8f9fa;
       --text-sub: #adb5bd;
       --accent-color: #3d8bfd;
+      --accent-soft: rgba(61, 139, 253, 0.16);
       --border-color: #2c2c2c;
+      --border-strong: #4a4a4a;
       --input-bg: #2a2a2a;
       --shadow-color: rgba(0, 0, 0, 0.3);
       --progress-bg: #333333;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+    input, textarea { user-select: text; }
+    html, body { height: 100%; }
     body {
       background-color: var(--bg-color);
       color: var(--text-color);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
       touch-action: manipulation;
       height: 100vh;
       height: 100dvh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
     }
+    button { font-family: inherit; }
+
+    /* ---------- 헤더 (테마 토글은 항상 우측 최상단) ---------- */
     .app-header {
-      height: 56px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between;
+      height: calc(56px + var(--safe-top)); padding: var(--safe-top) 8px 0;
+      display: flex; align-items: center; justify-content: space-between; position: relative;
       border-bottom: 1px solid var(--border-color); background-color: var(--bg-color); z-index: 100; flex-shrink: 0;
     }
+    .header-left { display: flex; justify-content: flex-start; }
+    .header-right { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding-right: 8px; }
     .header-btn { background: none; border: none; color: var(--text-color); font-size: 1.2rem; cursor: pointer; padding: 8px; display: flex; align-items: center; justify-content: center; }
-    .header-title { font-size: 1.1rem; font-weight: 600; }
+    /* 제목은 좌우 버튼 폭과 상관없이 화면 정중앙에 고정 */
+    .header-title { position: absolute; left: 50%; bottom: 0; height: 56px; line-height: 56px; transform: translateX(-50%); font-size: 1.1rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 270px); min-width: 0; pointer-events: none; }
+    .header-text-btn { background: none; border: none; color: var(--accent-color); font-size: 0.9rem; white-space: nowrap; font-weight: 600; cursor: pointer; padding: 6px 2px; }
 
     .theme-toggle { display: flex; align-items: center; cursor: pointer; }
-    .theme-toggle input { display: none; }
+    .theme-toggle input, .switch-row input { display: none; }
     .toggle-slider { width: 44px; height: 24px; background-color: #ccc; border-radius: 12px; position: relative; transition: 0.3s; flex-shrink: 0; }
     .toggle-slider::before { content: ""; position: absolute; width: 18px; height: 18px; border-radius: 50%; background-color: white; top: 3px; left: 3px; transition: 0.3s; }
     input:checked + .toggle-slider { background-color: var(--accent-color); }
@@ -57,455 +88,502 @@
     .section { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; }
     .section.active { display: flex; }
 
-    .home-container { padding: 24px 16px; display: flex; flex-direction: column; gap: 12px; max-width: 500px; margin: 0 auto; width: 100%; height: 100%; justify-content: center; }
-    .menu-card { background-color: var(--card-bg); padding: 24px 20px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 4px 12px var(--shadow-color); cursor: pointer; transition: transform 0.1s; display: flex; flex-direction: column; gap: 8px; }
-    .menu-card:active { transform: scale(0.98); }
-    .menu-card h2 { font-size: 1.25rem; color: var(--accent-color); }
-    .menu-card p { font-size: 0.9rem; color: var(--text-sub); }
-
-    /* 학습 정사각형 카드 2개 */
-    .home-square-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px; }
-    .menu-card.square { aspect-ratio: 2 / 1; padding: 14px 16px; justify-content: center; gap: 0; }
-    .menu-card.square h2 { font-size: 1.05rem; line-height: 1.3; }
-    .menu-card.square p { font-size: 0.78rem; line-height: 1.4; margin-top: 4px; }
-
-    /* 나머지 가로형 카드 (폭 축소) */
-    .menu-card.wide { flex-direction: row; align-items: center; justify-content: space-between; padding: 16px 20px; gap: 12px; }
-    .menu-card.wide h2 { font-size: 1.05rem; }
-    .menu-card.wide p { font-size: 0.82rem; margin-top: 3px; }
-    .menu-card.wide .card-arrow { font-size: 1.1rem; color: var(--accent-color); opacity: 0.8; flex-shrink: 0; }
-
-    .sub-container { padding: 20px 16px; overflow-y: auto; max-width: 500px; margin: 0 auto; width: 100%; flex: 1; }
-
-    /* 탭 헤더 */
-    .tab-header { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 12px; }
-    .tab-btn { flex: 1; padding: 12px; text-align: center; font-weight: 600; font-size: 0.95rem; color: var(--text-sub); cursor: pointer; border-bottom: 2px solid transparent; }
-    .tab-btn.active { color: var(--accent-color); border-bottom-color: var(--accent-color); }
-
-    /* 학습 공간/태그 선택 카드 */
-    .study-select-container { display: flex; flex-direction: column; overflow: hidden; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
-    .space-select-list { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; margin-top: 4px; overflow-y: auto; padding-right: 2px; }
-    
-    .space-card-item {
-      background-color: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 14px;
-      padding: 16px 18px;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      box-shadow: 0 2px 6px var(--shadow-color);
+    /* ---------- 홈 ----------
+       학습 카드 2개는 기존 2:1 비율, 나머지 카드는 위아래 여백 14px로 통일 */
+    .home-container {
+      padding: 24px 16px calc(24px + var(--safe-bottom)); display: flex; flex-direction: column; justify-content: center; gap: 12px;
+      max-width: 500px; margin: 0 auto; width: 100%; height: 100%; overflow-y: auto;
     }
+    .home-square-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; flex-shrink: 0; }
+    .menu-card {
+      background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px;
+      box-shadow: 0 4px 12px var(--shadow-color); cursor: pointer; transition: transform 0.1s; display: flex; flex-shrink: 0;
+    }
+    .menu-card:active { transform: scale(0.98); }
+    .menu-card h2 { font-size: 1.05rem; font-weight: 700; color: var(--text-color); line-height: 1.3; }
+    .menu-card p { font-size: 0.82rem; color: var(--text-sub); line-height: 1.4; margin-top: 3px; }
+
+    .card-icon { width: 40px; height: 40px; border-radius: 12px; background-color: var(--accent-soft); color: var(--accent-color); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .card-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* 정사각 카드: 기존 2:1 비율, 아이콘은 제목 옆에 작게 */
+    .menu-card.square { aspect-ratio: 2 / 1; padding: 14px 16px; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-content: center; align-items: start; }
+    .menu-card.square .card-icon { width: auto; height: auto; background: none; border-radius: 0; margin-top: 1px; }
+    .menu-card.square .card-icon svg { width: 20px; height: 20px; }
+    .menu-card.square p { font-size: 0.78rem; }
+    /* 제목은 아이콘 옆, 설명은 카드 폭 전체 사용 (좁은 폰에서 줄바꿈 방지) */
+    .menu-card.square .card-text { display: contents; }
+    .menu-card.square p { grid-column: 1 / -1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+
+    .menu-card.wide { flex-direction: row; align-items: center; gap: 14px; padding: 14px 18px; }
+    .menu-card.wide .card-text { flex: 1; min-width: 0; }
+    .card-arrow { color: var(--text-sub); display: flex; flex-shrink: 0; }
+    .card-arrow svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* 이어하기: 유일하게 색 테두리 */
+    .resume-card {
+      flex-shrink: 0; background-color: var(--card-bg); border: 1.5px solid var(--accent-color); border-radius: 16px;
+      padding: 14px 18px; cursor: pointer; box-shadow: 0 4px 12px var(--shadow-color);
+      display: flex; flex-direction: column; gap: 8px; transition: transform 0.1s; min-width: 0;
+    }
+    .resume-card:active { transform: scale(0.98); }
+    .resume-card.empty { background-color: transparent; border: 1.5px dashed var(--border-strong); box-shadow: none; cursor: default; align-items: center; gap: 6px; }
+    .resume-card.empty:active { transform: none; }
+    .resume-card.empty .card-icon { background-color: transparent; color: var(--text-sub); opacity: 0.6; width: auto; height: auto; }
+    .resume-card.empty p { color: var(--text-sub); font-size: 0.85rem; text-align: center; }
+    .resume-head { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .resume-head .card-text { flex: 1; min-width: 0; }
+    .resume-head h2 { font-size: 1.05rem; font-weight: 700; color: var(--accent-color); line-height: 1.3; }
+    .resume-mode { font-size: 0.75rem; font-weight: 600; color: var(--accent-color); background-color: var(--accent-soft); padding: 3px 9px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
+    .resume-names { font-size: 0.82rem; color: var(--text-sub); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .resume-card .progress-info { margin: 0; }
+
+    .sub-container { padding: 20px 16px calc(32px + var(--safe-bottom)); overflow-y: auto; max-width: 500px; margin: 0 auto; width: 100%; flex: 1; }
+
+    /* ---------- 선택 학습: 공간 목록 ---------- */
+    .study-select-container { display: flex; flex-direction: column; overflow: hidden; padding-bottom: max(16px, var(--safe-bottom)); }
+    .select-tools { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
+    .select-guide { font-size: 0.85rem; color: var(--text-sub); }
+    .space-select-list { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; margin-top: 4px; overflow-y: auto; padding: 2px 2px 4px; }
+    .space-card-item { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 16px 18px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 2px 6px var(--shadow-color); }
+    .space-card-item.selected { border-color: var(--accent-color); }
+    .space-card-item.editing { cursor: default; }
     .space-card-header { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
-    .space-card-title { font-size: 1.05rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-    .space-card-title input { width: 18px; height: 18px; accent-color: var(--accent-color); }
-    
+    .space-card-title { font-size: 1.05rem; font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .space-card-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .space-card-title input { width: 18px; height: 18px; accent-color: var(--accent-color); flex-shrink: 0; }
+    .space-meta { font-size: 0.8rem; color: var(--text-sub); white-space: nowrap; }
+    .edit-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
     .progress-box { margin-top: 4px; }
     .progress-info { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 4px; }
     .progress-bar-bg { width: 100%; height: 6px; background-color: var(--progress-bg); border-radius: 3px; overflow: hidden; }
     .progress-bar-fill { height: 100%; background-color: var(--accent-color); width: 0%; transition: width 0.3s; }
 
     .bottom-action-bar { margin-top: 12px; flex-shrink: 0; display: flex; gap: 8px; }
-    .btn-action-left { flex: 1; padding: 14px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--card-bg); color: #dc3545; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .btn-action-left:disabled { opacity: 0.4; cursor: not-allowed; color: var(--text-sub); }
-    .btn-action-right { flex: 1; padding: 14px; border-radius: 10px; border: none; background-color: var(--accent-color); color: white; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .btn-action-right:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-action-mid { flex: 1; padding: 14px; border-radius: 10px; border: 1px solid var(--accent-color); background-color: var(--card-bg); color: var(--accent-color); font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .btn-action-mid:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-action-left { flex: 1; padding: 14px 6px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--card-bg); color: var(--danger); font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .btn-action-mid { flex: 1; padding: 14px 6px; border-radius: 10px; border: 1px solid var(--accent-color); background-color: var(--card-bg); color: var(--accent-color); font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .btn-action-right { flex: 1; padding: 14px 6px; border-radius: 10px; border: none; background-color: var(--accent-color); color: white; font-size: 0.85rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .btn-action-left:disabled, .btn-action-mid:disabled, .btn-action-right:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-action-left:disabled { color: var(--text-sub); }
 
-    /* 단어 학습 진행 화면 */
-    .study-container { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; cursor: pointer; position: relative; }
-    
-    .study-progress-top {
-      position: absolute; top: 12px; left: 16px; right: 16px;
-      display: flex; flex-direction: column; gap: 6px;
+    /* ---------- 학습 화면 ---------- */
+    .study-container { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; cursor: pointer; position: relative; }
+    .study-top { position: absolute; top: 12px; left: 16px; right: 16px; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+    .study-top-row { display: flex; align-items: center; gap: 10px; }
+    .study-top-row .progress-bar-bg { flex: 1; }
+    .study-stat { font-size: 0.85rem; color: var(--text-sub); font-weight: 600; white-space: nowrap; }
+    .study-sub-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-sub); }
+    .study-space-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+    .study-note { font-size: 0.72rem; opacity: 0.85; white-space: nowrap; }
+    .random-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-sub); font-weight: 600; }
+
+    .study-center { width: 100%; max-width: 440px; position: relative; pointer-events: none; }
+    .word-display { font-size: 2.5rem; font-weight: 700; word-break: break-word; color: var(--text-color); line-height: 1.2; }
+    .reveal-box { position: absolute; top: 100%; left: 0; right: 0; margin-top: 14px; visibility: hidden; max-height: calc(50vh - 130px); max-height: calc(50dvh - 130px); overflow-y: auto; pointer-events: auto; }
+    .reveal-box.visible { visibility: visible; }
+    .meaning-display { font-size: 1.6rem; color: var(--accent-color); font-weight: 500; line-height: 1.45; }
+    /* 뜻 하나하나를 덩어리로 묶어, 줄이 모자라면 세미콜론 뒤에서 통째로 다음 줄로 넘김 */
+    .meaning-display .m { display: inline-block; max-width: 100%; word-break: keep-all; overflow-wrap: anywhere; }
+    .memo-display { margin-top: 12px; font-size: 0.95rem; color: var(--text-sub); white-space: pre-line; line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
+    .memo-display:empty { display: none; }
+    .tag-state { display: inline-block; margin-top: 10px; font-size: 0.78rem; font-weight: 600; color: var(--accent-color); background-color: var(--accent-soft); padding: 2px 10px; border-radius: 12px; }
+    .tag-state:empty { display: none; }
+
+    /* 하단: [수정]  도움말  [복습] */
+    .study-bottom { position: absolute; left: 16px; right: 16px; bottom: max(20px, var(--safe-bottom)); display: flex; align-items: center; gap: 10px; pointer-events: none; }
+    .study-btn {
+      pointer-events: auto; flex-shrink: 0; min-width: 84px; padding: 12px 18px; border-radius: 30px;
+      border: 1px solid var(--border-color); background-color: var(--card-bg); color: var(--text-color);
+      font-size: 1.05rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px var(--shadow-color);
+      visibility: hidden; transition: transform 0.1s, background-color 0.2s, color 0.2s, border-color 0.2s;
     }
-    .study-space-label { font-size: 0.75rem; color: var(--text-sub); opacity: 0.85; margin-top: 2px; }
-    .random-mode .study-progress-text, .random-mode .study-progress-top .progress-bar-bg { display: none; }
-    .random-mode .study-space-label { margin-top: 0; font-size: 0.85rem; text-align: center; }
-    .study-progress-text { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-sub); font-weight: 500; }
-    
-    .study-card {
-      pointer-events: none;
-      background: none;
-      border: none;
-      box-shadow: none;
-      padding: 0;
-      width: 100%;
-      max-width: 420px;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
+    .study-btn.visible { visibility: visible; }
+    .study-btn:active { transform: scale(0.95); }
+    .study-btn.review.active { background-color: var(--accent-color); border-color: var(--accent-color); color: #fff; }
+    .study-btn.review.locked { opacity: 0.55; }
+    .study-hint { flex: 1; min-width: 0; text-align: center; font-size: 0.75rem; line-height: 1.45; color: var(--text-sub); white-space: pre-line; word-break: keep-all; pointer-events: none; }
 
-    .word-display-group { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-    .word-display { font-size: 2.5rem; font-weight: 700; word-break: break-word; color: var(--text-color); }
+    /* 학습 중 인라인 수정 */
+    .inline-edit { position: absolute; top: 12px; left: 16px; right: 16px; max-width: 440px; margin: 0 auto; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 16px; display: none; flex-direction: column; gap: 8px; box-shadow: 0 6px 20px var(--shadow-color); z-index: 20; cursor: default; text-align: left; }
+    .inline-edit.active { display: flex; }
+    .inline-edit-title { font-size: 1rem; font-weight: 600; margin-bottom: 2px; }
+    .study-container.editing .study-center,
+    .study-container.editing .study-bottom { display: none; }
 
-    .meaning-display { font-size: 1.6rem; color: var(--accent-color); min-height: 2.2rem; visibility: hidden; word-break: break-word; font-weight: 500; margin-bottom: 12px; }
-    .meaning-display.visible { visibility: visible; }
-
-
-    .tag-badge-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
-    .tag-badge { font-size: 0.8rem; background-color: rgba(13, 110, 253, 0.1); color: var(--accent-color); padding: 2px 10px; border-radius: 12px; }
-
-    /* 하단 제어 버튼 (뜻 공개 시 함께 노출 - 크기 및 배치 확대 조정) */
-    .btn-edit-in-study {
-      position: absolute;
-      bottom: max(20px, env(safe-area-inset-bottom));
-      left: 20px;
-      padding: 12px 22px;
-      border-radius: 30px;
-      border: 1px solid var(--border-color);
-      background-color: var(--card-bg);
-      color: var(--text-color);
-      font-size: 1.15rem;
-      font-weight: 600;
-      cursor: pointer;
-      z-index: 10;
-      display: none;
-      align-items: center;
-      gap: 6px;
-      box-shadow: 0 4px 12px var(--shadow-color);
-      transition: transform 0.1s;
-    }
-    .btn-edit-in-study:active { transform: scale(0.95); }
-    .btn-edit-in-study.visible { display: flex; }
-
-    .review-check {
-      position: absolute;
-      bottom: max(20px, env(safe-area-inset-bottom));
-      right: 20px;
-      display: none;
-      align-items: center;
-      gap: 12px;
-      font-size: 1.15rem;
-      font-weight: 600;
-      color: var(--text-color);
-      cursor: pointer;
-      z-index: 10;
-      background-color: var(--card-bg);
-      padding: 8px 18px;
-      border-radius: 30px;
-      border: 1px solid var(--border-color);
-      box-shadow: 0 4px 12px var(--shadow-color);
-      transition: transform 0.1s;
-    }
-    .review-check:active { transform: scale(0.95); }
-    .review-check.visible { display: flex; }
-    .review-check input { display: none; }
-    .review-slider { width: 62px; height: 34px; background-color: #ccc; border-radius: 17px; position: relative; transition: 0.3s; flex-shrink: 0; }
-    .review-slider::before { content: ""; position: absolute; width: 26px; height: 26px; border-radius: 50%; background-color: white; top: 4px; left: 4px; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-    .review-check input:checked + .review-slider { background-color: var(--accent-color); }
-    .review-check input:checked + .review-slider::before { transform: translateX(28px); }
-    
-    .study-hint { position: absolute; bottom: 85px; font-size: 0.8rem; color: var(--text-sub); pointer-events: none; }
-
-    /* 폼 요소 */
+    /* ---------- 폼 ---------- */
     .form-group { margin-bottom: 16px; }
-    .form-group label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; color: var(--text-sub); }
-    .form-input, .form-textarea, .form-select { box-shadow: 0 1px 4px var(--shadow-color); width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color); font-size: 0.95rem; outline: none; user-select: text; }
-    .form-textarea { height: 90px; resize: none; }
+    .form-group > label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; color: var(--text-sub); }
+    .form-input, .form-textarea, .form-select { box-shadow: 0 1px 4px var(--shadow-color); width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color); font-size: 1rem; outline: none; font-family: inherit; }
+    .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--accent-color); }
+    .form-textarea { height: 110px; resize: none; line-height: 1.5; }
+    .form-textarea.memo { height: 72px; }
+    .stack { display: flex; flex-direction: column; gap: 8px; }
     .btn-primary { width: 100%; padding: 12px; border-radius: 10px; border: none; background-color: var(--accent-color); color: white; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+    .btn-secondary { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: none; color: var(--text-color); font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+    .btn-danger { flex: 1; padding: 12px; border-radius: 8px; border: none; background-color: var(--danger); color: white; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+    .btn-mini { flex: none; padding: 5px 10px; font-size: 0.8rem; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--card-bg); color: var(--text-color); font-weight: 600; cursor: pointer; }
+    .btn-mini.danger { color: var(--danger); }
+    .flex1 { flex: 1; }
+    .row { display: flex; gap: 8px; }
+    .row > .form-input { flex: 1; min-width: 0; }
+    .row > .btn-primary { width: 80px; flex-shrink: 0; }
+    .field-help { font-size: 0.78rem; color: var(--text-sub); margin-top: 6px; line-height: 1.5; }
 
-    .space-manage-box { display: flex; gap: 8px; }
-    .accordion-toggle { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin: 12px 0; }
+    .accordion-toggle { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin: 16px 0 12px; }
+    .accordion-arrow { transition: transform 0.2s; color: var(--text-sub); }
+    .accordion-toggle.open .accordion-arrow { transform: rotate(90deg); }
     .accordion-content { display: none; padding-bottom: 12px; }
     .accordion-content.open { display: block; }
     .divider { text-align: center; margin: 24px 0 16px 0; position: relative; }
     .divider::before { content: ""; position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background-color: var(--border-color); z-index: 1; }
     .divider span { position: relative; z-index: 2; background-color: var(--bg-color); padding: 0 12px; font-size: 0.85rem; color: var(--text-sub); }
+    .backup-help { font-size: 0.82rem; color: var(--text-sub); margin-bottom: 10px; line-height: 1.5; }
 
-    .list-header-area { padding: 12px 16px; background-color: var(--bg-color); border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
-    .search-input { box-shadow: 0 1px 4px var(--shadow-color); width: 100%; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color); font-size: 0.95rem; outline: none; user-select: text; }
+    /* ---------- 단어 확인 ---------- */
+    .list-header-area { padding: 12px 16px 10px; background-color: var(--bg-color); border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+    .list-header-inner, .list-container { max-width: 500px; margin: 0 auto; }
+    .search-input { box-shadow: 0 1px 4px var(--shadow-color); width: 100%; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-color); font-size: 1rem; outline: none; font-family: inherit; }
+    .list-tools { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+    .list-tools .form-select { flex: 1; min-width: 0; padding: 8px 10px; font-size: 0.85rem; box-shadow: none; }
+    .tool-chip { flex-shrink: 0; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--card-bg); color: var(--text-sub); font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .tool-chip.active { background-color: var(--accent-color); border-color: var(--accent-color); color: #fff; }
     .word-list-scroll { flex: 1; overflow-y: auto; padding: 16px; }
-    .list-container { max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 40px; }
+    .list-container { display: flex; flex-direction: column; gap: 10px; padding-bottom: 16px; }
+    .list-count { font-size: 0.8rem; color: var(--text-sub); margin-bottom: 2px; }
+    .pager { flex-shrink: 0; display: flex; justify-content: center; align-items: center; gap: 18px; padding: 10px 16px calc(10px + var(--safe-bottom)); border-top: 1px solid var(--border-color); background-color: var(--bg-color); }
+    .pager button { width: 44px; height: 36px; border-radius: 10px; border: 1px solid var(--border-color); background-color: var(--card-bg); color: var(--text-color); font-size: 1rem; font-weight: 700; cursor: pointer; }
+    .pager button:disabled { opacity: 0.35; cursor: not-allowed; }
+    .pager span { font-size: 0.9rem; font-weight: 600; min-width: 64px; text-align: center; }
 
-    .folder-card { background-color: rgba(13, 110, 253, 0.08); border: 1.5px solid var(--accent-color); border-radius: 12px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 6px; }
-    .folder-card-title { font-size: 0.95rem; font-weight: 700; color: var(--accent-color); display: flex; align-items: center; gap: 8px; }
-    .folder-card-count { font-size: 0.8rem; font-weight: 600; color: var(--accent-color); background-color: rgba(13, 110, 253, 0.15); padding: 2px 8px; border-radius: 12px; }
+    .word-item { box-shadow: 0 2px 6px var(--shadow-color); background-color: var(--card-bg); padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; }
+    .word-item.static { cursor: default; box-shadow: none; }
+    .word-item-info { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+    .word-item-eng { font-size: 1.05rem; font-weight: 600; word-break: break-word; }
+    .word-item-kor { font-size: 0.9rem; color: var(--text-sub); word-break: keep-all; overflow-wrap: anywhere; }
+    .word-item-memo { font-size: 0.78rem; color: var(--text-sub); opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .word-item-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 0.8rem; flex-shrink: 0; max-width: 40%; }
+    .word-review-badge { color: var(--accent-color); font-weight: 600; white-space: nowrap; }
+    .word-space-badge { background-color: var(--progress-bg); color: var(--text-sub); padding: 2px 6px; border-radius: 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    .word-item { box-shadow: 0 2px 6px var(--shadow-color); background-color: var(--card-bg); padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-    .word-item-info { display: flex; flex-direction: column; gap: 4px; user-select: text; flex: 1; }
-    .word-item-eng { font-size: 1.05rem; font-weight: 600; }
-    .word-item-kor { font-size: 0.9rem; color: var(--text-sub); }
-    .word-item-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 0.8rem; }
-    .word-review-badge { color: var(--accent-color); font-weight: 600; }
-    .word-space-badge { background-color: var(--progress-bg); color: var(--text-sub); padding: 2px 6px; border-radius: 6px; }
+    .empty-msg { text-align: center; color: var(--text-sub); padding: 40px 0; font-size: 0.95rem; line-height: 1.6; }
 
-    /* 토스트 */
-    .toast { position: fixed; left: 50%; bottom: max(28px, calc(env(safe-area-inset-bottom) + 20px)); transform: translate(-50%, 12px); max-width: calc(100% - 48px); background-color: var(--text-color); color: var(--bg-color); padding: 11px 18px; border-radius: 22px; font-size: 0.88rem; font-weight: 500; text-align: center; line-height: 1.4; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; z-index: 300; }
+    /* ---------- 토스트 ---------- */
+    .toast { position: fixed; left: 50%; top: calc(var(--safe-top) + 68px); transform: translate(-50%, -12px); width: max-content; max-width: calc(100% - 48px); background-color: var(--text-color); color: var(--bg-color); padding: 11px 18px; border-radius: 22px; font-size: 0.88rem; font-weight: 500; text-align: center; line-height: 1.4; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; z-index: 400; }
     .toast.show { opacity: 0.95; transform: translate(-50%, 0); }
 
-    /* 목록 필터 칩 */
-    .filter-row { display: flex; gap: 6px; overflow-x: auto; padding: 10px 2px 4px; scrollbar-width: none; }
-    .filter-row::-webkit-scrollbar { display: none; }
-    .filter-chip { flex-shrink: 0; padding: 6px 13px; border-radius: 16px; border: 1px solid var(--border-color); background-color: var(--card-bg); color: var(--text-sub); font-size: 0.82rem; font-weight: 600; cursor: pointer; box-shadow: 0 1px 3px var(--shadow-color); white-space: nowrap; }
-    .filter-chip.active { background-color: var(--accent-color); border-color: var(--accent-color); color: #fff; }
-
-    /* 백업 안내 */
-    .backup-help { font-size: 0.82rem; color: var(--text-sub); margin-bottom: 10px; line-height: 1.5; }
-    .sub-container { padding-bottom: 32px; }
-
-    .empty-msg { text-align: center; color: var(--text-sub); padding: 40px 0; font-size: 0.95rem; }
-
-    /* 모달 */
+    /* ---------- 모달 ---------- */
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 200; padding: 20px; }
     .modal-overlay.active { display: flex; }
-    .modal-box { background-color: var(--card-bg); border-radius: 16px; width: 100%; max-width: 400px; padding: 20px; display: flex; flex-direction: column; gap: 12px; max-height: 85vh; overflow-y: auto; }
+    .modal-overlay.top { z-index: 250; }
+    .modal-box { background-color: var(--card-bg); border-radius: 16px; width: 100%; max-width: 400px; padding: 20px; display: flex; flex-direction: column; gap: 12px; max-height: 85vh; max-height: 85dvh; overflow-y: auto; }
     .modal-title { font-size: 1.1rem; font-weight: 600; }
+    .modal-sub { font-size: 0.85rem; color: var(--text-sub); margin-top: -6px; }
+    .modal-label { font-size: 0.82rem; font-weight: 600; color: var(--text-sub); margin-bottom: -4px; }
     .modal-btns { display: flex; gap: 8px; margin-top: 4px; }
-    .btn-secondary { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: none; color: var(--text-color); font-weight: 600; cursor: pointer; }
-    .btn-danger { flex: 1; padding: 12px; border-radius: 8px; border: none; background-color: #dc3545; color: white; font-weight: 600; cursor: pointer; }
-  
-    .word-display-group { position: relative; width: 100%; justify-content: center; margin-bottom: 0; }
-    .meaning-display { position: absolute; top: 100%; left: 0; right: 0; margin: 14px 0 0; word-break: keep-all; overflow-wrap: break-word; line-height: 1.45; }
-    .tag-badge-group { visibility: hidden; min-height: 1.6rem; margin-top: 6px; }
-    .tag-badge-group.visible { visibility: visible; }
-    .chk-row { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; padding: 6px 2px; cursor: pointer; }
+    .modal-list { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; max-height: 50vh; }
+    .chk-row { display: flex; align-items: center; gap: 10px; font-size: 0.95rem; padding: 8px 2px; cursor: pointer; }
     .chk-row input { width: 18px; height: 18px; accent-color: var(--accent-color); flex-shrink: 0; }
-    .dup-group { border: 1px solid var(--border-color); border-radius: 10px; padding: 6px 10px; }
-    .dup-eng { font-weight: 700; margin-bottom: 2px; }
+    .chk-row.all { border-bottom: 1px solid var(--border-color); font-weight: 600; }
+    .switch-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 0.95rem; }
+    .switch-row small { display: block; font-size: 0.78rem; color: var(--text-sub); margin-top: 3px; font-weight: 400; line-height: 1.4; }
+    .dup-group { border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px; }
+    .dup-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 2px; }
+    .dup-eng { font-weight: 700; word-break: break-word; }
+    .dup-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .dup-body small { color: var(--text-sub); font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   </style>
 </head>
 <body>
 
   <header class="app-header">
-    <button class="header-btn" id="backBtn" style="visibility: hidden;">&#x2190;</button>
+    <div class="header-left">
+      <button class="header-btn" id="backBtn" style="visibility: hidden;" aria-label="뒤로">&#x2190;</button>
+    </div>
     <div class="header-title" id="headerTitle">단어장</div>
-    <label class="theme-toggle">
-      <input type="checkbox" id="themeSwitch">
-      <span class="toggle-slider"></span>
-    </label>
+    <div class="header-right">
+      <button class="header-text-btn" id="btnSpaceEdit" style="display: none;">공간 편집</button>
+      <label class="theme-toggle" aria-label="다크 모드">
+        <input type="checkbox" id="themeSwitch">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
   </header>
 
   <main class="content-area">
 
-    <!-- 메인 홈 -->
+    <!-- 홈 -->
     <section id="sec-home" class="section active">
       <div class="home-container">
         <div class="home-square-row">
-          <div class="menu-card square" onclick="navTo('study-select')">
-            <div>
-              <h2>선택 단어 학습</h2>
-              <p>공간·태그를 골라 학습</p>
+          <div class="menu-card square" id="cardSelect">
+            <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/><path d="m9 10 2 2 4-4"/></svg></span>
+            <div class="card-text">
+              <h2>선택 학습</h2>
+              <p>공간을 골라 회독</p>
             </div>
           </div>
-          <div class="menu-card square" onclick="startRandomAll()">
-            <div>
-              <h2>랜덤 단어 학습</h2>
-              <p>전체 단어에서 랜덤 출제</p>
+          <div class="menu-card square" id="cardRandom">
+            <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="m4 4 5 5"/></svg></span>
+            <div class="card-text">
+              <h2>랜덤 학습</h2>
+              <p id="randomCardSub">전체 단어에서 출제</p>
             </div>
           </div>
         </div>
-        <div class="menu-card wide" onclick="navTo('add')">
-          <div>
-            <h2>단어 저장 및 공간 관리</h2>
-            <p>단어를 추가하거나 공간을 편집해요.</p>
+        <div class="resume-card empty" id="resumeCard"></div>
+        <div class="menu-card wide" id="cardAdd">
+          <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v6M9 14h6"/></svg></span>
+          <div class="card-text">
+            <h2>단어 저장</h2>
+            <p>단어를 추가하고 백업해요.</p>
           </div>
-          <span class="card-arrow">&rarr;</span>
+          <span class="card-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>
         </div>
-        <div class="menu-card wide" onclick="navTo('list')">
-          <div>
-            <h2>저장 단어 확인</h2>
-            <p>전체·복습 단어를 확인하고 편집해요.</p>
+        <div class="menu-card wide" id="cardList">
+          <span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke-width="3"/></svg></span>
+          <div class="card-text">
+            <h2>단어 확인</h2>
+            <p>저장한 단어를 찾고 수정해요.</p>
           </div>
-          <span class="card-arrow">&rarr;</span>
+          <span class="card-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>
         </div>
       </div>
     </section>
 
-    <!-- 학습 조건 선택 -->
+    <!-- 선택 학습: 공간 선택 / 공간 편집 -->
     <section id="sec-study-select" class="section">
       <div class="sub-container study-select-container">
-        <div class="tab-header">
-          <div class="tab-btn active" id="tabSpaceBtn" onclick="switchSelectTab('space')">공간별</div>
-          <div class="tab-btn" id="tabTagBtn" onclick="switchSelectTab('tag')">태그별</div>
+        <div class="select-tools">
+          <span class="select-guide" id="selectGuide">학습할 공간 선택</span>
+          <button class="btn-mini" id="btnSelectAll">전체 선택/해제</button>
         </div>
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <span style="font-size: 0.85rem; color: var(--text-sub);" id="selectGuideText">출제할 공간 선택</span>
-          <button class="btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; flex: none;" onclick="toggleSelectAll()">전체 선택/해제</button>
-        </div>
-
         <div class="space-select-list" id="studySelectList"></div>
 
-        <div class="bottom-action-bar">
-          <button class="btn-action-left" id="btnResetData" onclick="resetSelectedData()" disabled>회독 초기화</button>
-          <button class="btn-action-mid" id="btnReviewStudy" onclick="startStudyExecution('review')" disabled>복습 단어 학습</button>
-          <button class="btn-action-right" id="btnStartStudy" onclick="startStudyExecution('normal')" disabled>학습 시작</button>
+        <div class="bottom-action-bar" id="selectNormalBar">
+          <button class="btn-action-left" id="btnResetData" disabled>학습 초기화</button>
+          <button class="btn-action-mid" id="btnReviewStudy" disabled>복습 단어만</button>
+          <button class="btn-action-right" id="btnStartStudy" disabled>학습 시작</button>
+        </div>
+        <div class="bottom-action-bar row" id="selectEditBar" style="display: none;">
+          <input type="text" id="editNewSpace" class="form-input" maxlength="15" placeholder="새 공간 이름 (최대 15자)" enterkeyhint="done">
+          <button class="btn-primary" id="btnEditNewSpace">생성</button>
         </div>
       </div>
     </section>
 
-    <!-- 단어 학습 실행 -->
+    <!-- 학습 진행 -->
     <section id="sec-study-exec" class="section">
       <div class="study-container" id="studyArea">
-        <div class="study-progress-top">
-          <div class="study-progress-text">
-            <span id="studyRoundText">1회독 진행 중</span>
-            <span id="studyRatioText">0 / 0 (0%)</span>
+        <div class="study-top">
+          <div id="topSelect">
+            <div class="study-top-row">
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="studyBar"></div></div>
+              <span class="study-stat" id="studyStat">0% · 1회독</span>
+            </div>
+            <div class="study-sub-row" style="margin-top: 6px;">
+              <span class="study-space-label" id="studySpaceText"></span>
+              <span class="study-note" id="studyNote"></span>
+            </div>
           </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" id="studyProgressBar"></div>
-          </div>
-          <div class="study-space-label" id="studySpaceText"></div>
-          <div class="tag-badge-group" id="studyTagGroup"></div>
-        </div>
-
-        <div class="study-card">
-          <div class="word-display-group">
-            <div class="word-display" id="studyWord">단어 불러오는 중...</div>
-            <div class="meaning-display" id="studyMeaning">뜻</div>
+          <div class="random-top" id="topRandom" style="display: none;">
+            <span class="study-space-label" id="randomSpaceText"></span>
+            <span id="randomCountText">학습 0</span>
           </div>
         </div>
 
-        <!-- 좌측 최하단 수정 버튼 (뜻 공개 시 함께 노출) -->
-        <button class="btn-edit-in-study" id="btnEditInStudy" onclick="event.stopPropagation(); openModal(currentStudyWord.id)">✏️ 수정</button>
+        <div class="study-center">
+          <div class="word-display" id="studyWord"></div>
+          <div class="reveal-box" id="revealBox">
+            <div class="meaning-display" id="studyMeaning"></div>
+            <div class="memo-display" id="studyMemo"></div>
+            <span class="tag-state" id="studyTagState"></span>
+          </div>
+        </div>
 
-        <!-- 우측 최하단 복습 필요 토글 (뜻 공개 시 함께 노출) -->
-        <label class="review-check" id="reviewBox" onclick="event.stopPropagation();">
-          <span>복습 필요</span>
-          <input type="checkbox" id="chkReview">
-          <span class="review-slider"></span>
-        </label>
+        <div class="study-bottom">
+          <button class="study-btn no-tap" id="btnEditInStudy">수정</button>
+          <div class="study-hint" id="studyHint"></div>
+          <button class="study-btn review no-tap" id="btnReview" aria-pressed="false">복습</button>
+        </div>
 
-        <div class="study-hint" id="studyHint">화면을 터치하세요</div>
+        <div class="inline-edit no-tap" id="inlineEdit">
+          <div class="inline-edit-title">단어 수정</div>
+          <input type="text" id="ieWord" class="form-input" placeholder="영단어" enterkeyhint="next" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <input type="text" id="ieMeaning" class="form-input" placeholder="뜻 (여러 개는 ; 로 구분)" enterkeyhint="done">
+          <textarea id="ieMemo" class="form-textarea memo" placeholder="메모 (문법, 예문 등)"></textarea>
+          <div class="modal-btns">
+            <button class="btn-secondary" id="ieCancel">취소</button>
+            <button class="btn-primary flex1" id="ieSave">저장</button>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- 단어 추가 및 공간 관리 -->
+    <!-- 단어 저장 -->
     <section id="sec-add" class="section">
       <div class="sub-container">
         <div class="form-group">
-          <label>공간 선택</label>
-          <select id="saveSpaceSelect" class="form-select"></select>
+          <label for="saveSpaceSelect">공간</label>
+          <div class="stack">
+            <select id="saveSpaceSelect" class="form-select"></select>
+            <div class="row">
+              <input type="text" id="quickSpaceName" class="form-input" maxlength="15" placeholder="새 공간 이름 입력 후 Enter" enterkeyhint="done">
+              <button class="btn-primary" id="btnQuickSpace">생성</button>
+            </div>
+          </div>
         </div>
-        <div class="form-group">
-          <input type="text" id="inputEng" class="form-input" placeholder="영단어" style="margin-bottom: 8px;">
-          <input type="text" id="inputKor" class="form-input" placeholder="뜻" style="margin-bottom: 8px;">
-          <input type="text" id="inputTags" class="form-input" placeholder="태그 (쉼표 구분: 고급동사, 다의어)">
+        <div class="form-group stack">
+          <input type="text" id="inputEng" class="form-input" placeholder="영단어" enterkeyhint="next" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <input type="text" id="inputMeaning" class="form-input" placeholder="뜻 (여러 개는 ; 로 구분)" enterkeyhint="done">
+          <input type="text" id="inputMemo" class="form-input" placeholder="메모 (선택: 문법, 예문 등)" enterkeyhint="done">
         </div>
-        <button class="btn-primary" onclick="addSingleWord()">단어 저장하기</button>
+        <button class="btn-primary" id="btnAddWord">단어 저장</button>
 
-        <div class="accordion-toggle" onclick="toggleBatchAccordion()">
-          <span>일괄 입력</span>
-          <span id="accordionArrow">&gt;</span>
+        <div class="accordion-toggle" id="batchToggle">
+          <span>일괄 저장</span>
+          <span class="accordion-arrow">&gt;</span>
         </div>
-        <div class="accordion-content" id="batchAccordionContent">
+        <div class="accordion-content" id="batchContent">
           <div class="form-group">
-            <input type="text" id="inputBatchTags" class="form-input" placeholder="공통 태그 (선택, 쉼표 구분)" style="margin-bottom: 8px;">
-            <textarea id="inputBatch" class="form-textarea" placeholder="apple:사과&#10;banana:바나나"></textarea>
+            <textarea id="inputBatch" class="form-textarea" placeholder="apple:사과&#10;run:달리다;운영하다;출마하다" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+            <div class="field-help">한 줄에 한 단어씩 <b>영단어:뜻</b> 형식으로 적고, 뜻이 여러 개면 세미콜론(;)으로 구분하세요. 형식이 틀린 줄은 저장되지 않고 입력창에 남아요.</div>
           </div>
-          <button class="btn-primary" onclick="addBatchWords()">일괄 저장하기</button>
-        </div>
-
-        <div class="divider"><span>공간 관리</span></div>
-
-        <div class="form-group">
-          <label>새 공간 생성 (최대 15자)</label>
-          <div class="space-manage-box">
-            <input type="text" id="newSpaceName" class="form-input" maxlength="15" placeholder="공간 이름 입력">
-            <button class="btn-primary" style="width: 90px; flex-shrink: 0;" onclick="createNewSpace()">생성</button>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>공간 편집</label>
-          <select id="editSpaceSelect" class="form-select" style="margin-bottom: 8px;"></select>
-          <div class="space-manage-box">
-            <input type="text" id="renameSpaceName" class="form-input" maxlength="15" placeholder="바꿀 이름 입력">
-            <button class="btn-secondary" style="width: 75px; flex: none;" onclick="renameSpace()">수정</button>
-            <button class="btn-danger" style="width: 75px; flex: none;" onclick="deleteSpace()">삭제</button>
-          </div>
+          <button class="btn-primary" id="btnAddBatch">일괄 저장</button>
         </div>
 
         <div class="divider"><span>데이터 백업</span></div>
-
         <div class="form-group">
-          <div class="backup-help">단어는 이 브라우저에만 저장돼요. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업해 두세요.</div>
-          <div class="space-manage-box">
-            <button class="btn-secondary" onclick="exportData()">내보내기</button>
-            <button class="btn-secondary" onclick="document.getElementById('importFile').click()">가져오기</button>
+          <div class="backup-help">단어는 이 브라우저에만 저장돼요. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 내보내기로 백업해 두세요.</div>
+          <div class="row">
+            <button class="btn-secondary" id="btnExport">내보내기</button>
+            <button class="btn-secondary" id="btnImport">가져오기</button>
           </div>
-          <input type="file" id="importFile" accept=".json,application/json" style="display: none;" onchange="importData(event)">
+          <input type="file" id="importFile" accept=".json,application/json" style="display: none;">
         </div>
       </div>
     </section>
 
-    <!-- 목록 조회 -->
+    <!-- 단어 확인 -->
     <section id="sec-list" class="section">
       <div class="list-header-area">
-        <input type="text" id="searchInput" class="search-input" placeholder="단어, 뜻, 공간 또는 태그 검색..." oninput="renderList()">
-        <div class="filter-row" id="filterRow"></div>
+        <div class="list-header-inner">
+          <input type="search" id="searchInput" class="search-input" placeholder="영단어 또는 뜻 검색" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <div class="list-tools">
+            <select id="listSpaceFilter" class="form-select"></select>
+            <button class="tool-chip" id="btnReviewFilter">🔖 복습 0</button>
+            <button class="tool-chip" id="btnDup">🔁 중복 0</button>
+          </div>
+        </div>
       </div>
-      <div class="word-list-scroll">
+      <div class="word-list-scroll" id="listScroll">
         <div class="list-container" id="vocabList"></div>
+      </div>
+      <div class="pager">
+        <button id="pagePrev" aria-label="이전 페이지">&lsaquo;</button>
+        <span id="pageText">1 / 1</span>
+        <button id="pageNext" aria-label="다음 페이지">&rsaquo;</button>
       </div>
     </section>
 
   </main>
 
-  <!-- 단어 수정 모달 -->
+  <!-- 랜덤 학습 시작 -->
+  <div class="modal-overlay" id="randomModal">
+    <div class="modal-box">
+      <div class="modal-title">랜덤 학습</div>
+      <div class="modal-sub" id="randomInfo"></div>
+      <label class="switch-row">
+        <span>복습 단어 집중<small>복습 태그된 단어만 나오고, 복습을 자주 누른 단어일수록 더 자주 나와요.</small></span>
+        <input type="checkbox" id="chkFocus">
+        <span class="toggle-slider"></span>
+      </label>
+      <div class="modal-btns">
+        <button class="btn-secondary" id="randomCancel">취소</button>
+        <button class="btn-primary flex1" id="randomStart">학습 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 단어 수정 (단어 확인 탭) -->
   <div class="modal-overlay" id="editModal">
     <div class="modal-box">
       <div class="modal-title">단어 수정</div>
-      <input type="text" id="editEng" class="form-input" placeholder="영단어">
-      <input type="text" id="editKor" class="form-input" placeholder="뜻">
-      <input type="text" id="editTags" class="form-input" placeholder="태그 (쉼표 구분)">
-      <div class="form-group" style="margin: 0;">
-        <label>소속 공간</label>
-        <select id="editWordSpaceSelect" class="form-select"></select>
-      </div>
+      <input type="text" id="editWord" class="form-input" placeholder="영단어" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <input type="text" id="editMeaning" class="form-input" placeholder="뜻 (여러 개는 ; 로 구분)">
+      <textarea id="editMemo" class="form-textarea memo" placeholder="메모 (문법, 예문 등)"></textarea>
+      <div class="modal-label">공간</div>
+      <select id="editSpace" class="form-select"></select>
+      <label class="switch-row" id="editReviewRow">
+        <span>복습 태그<small id="editReviewSub"></small></span>
+        <input type="checkbox" id="editReview">
+        <span class="toggle-slider"></span>
+      </label>
       <div class="modal-btns">
-        <button class="btn-danger" onclick="deleteCurrentWord()">삭제</button>
-        <button class="btn-secondary" onclick="closeModal()">취소</button>
-        <button class="btn-primary" style="flex: 1;" onclick="saveEditWord()">저장</button>
+        <button class="btn-danger" id="editDelete">삭제</button>
+        <button class="btn-secondary" id="editCancel">취소</button>
+        <button class="btn-primary flex1" id="editSave">저장</button>
       </div>
     </div>
   </div>
 
-  <div class="modal-overlay" id="reviewListModal">
+  <!-- 복습 단어 목록 (회독 완료 / 랜덤 종료) -->
+  <div class="modal-overlay" id="wordListModal">
     <div class="modal-box">
-      <div class="modal-title" style="color: var(--accent-color);">🔖 복습이 필요한 단어</div>
-      <div id="reviewModalList" style="overflow-y: auto; display: flex; flex-direction: column; gap: 8px; max-height: 50vh;"></div>
-      <button class="btn-secondary" style="flex: none;" onclick="closeReviewModal()">닫기</button>
+      <div class="modal-title" id="wlTitle"></div>
+      <div class="modal-sub" id="wlSub"></div>
+      <div class="modal-list" id="wlList"></div>
+      <button class="btn-primary" id="wlBtn">확인</button>
     </div>
   </div>
 
+  <!-- 내보내기 -->
   <div class="modal-overlay" id="exportModal">
     <div class="modal-box">
       <div class="modal-title">내보낼 공간 선택</div>
-      <div id="exportSpaceList" style="overflow-y:auto; max-height:40vh;"></div>
-      <label class="chk-row"><input type="checkbox" id="expTags"> 태그 포함</label>
-      <label class="chk-row"><input type="checkbox" id="expReview"> 복습 표시 포함</label>
+      <label class="chk-row all"><input type="checkbox" id="expAll" checked> 모두 선택</label>
+      <div id="exportSpaceList" style="overflow-y: auto; max-height: 40vh;"></div>
+      <label class="chk-row"><input type="checkbox" id="expReview"> 복습 태그 포함</label>
       <div class="modal-btns">
-        <button class="btn-secondary" onclick="toggleAllExport()">전체 선택</button>
-        <button class="btn-secondary" onclick="document.getElementById('exportModal').classList.remove('active')">취소</button>
-        <button class="btn-primary" style="flex:1" onclick="doExport()">내보내기</button>
+        <button class="btn-secondary" id="exportCancel">취소</button>
+        <button class="btn-primary flex1" id="exportDo">내보내기</button>
       </div>
     </div>
   </div>
 
+  <!-- 중복 정리 -->
   <div class="modal-overlay" id="dupModal">
     <div class="modal-box">
-      <div class="modal-title">🔁 중복 단어 (영단어가 같은 단어)</div>
-      <div id="dupList" onchange="dupUpdate()" style="overflow-y:auto; display:flex; flex-direction:column; gap:8px; max-height:50vh;"></div>
-      <div class="modal-btns" style="flex-wrap:wrap;">
-        <button class="btn-secondary" onclick="dupSelectAll()">전체 선택/해제</button>
-        <button class="btn-secondary" onclick="dupKeepOne()">묶음마다 1개 남기기</button>
+      <div class="modal-title">🔁 중복 단어</div>
+      <div class="modal-sub">영단어가 같은 단어를 묶었어요. 합치면 뜻과 메모가 하나로 모여요.</div>
+      <div class="modal-list" id="dupList"></div>
+      <div class="modal-btns">
+        <button class="btn-secondary" id="dupSelectAll">전체 선택/해제</button>
+        <button class="btn-secondary" id="dupKeepOne">묶음마다 1개 남기기</button>
       </div>
       <div class="modal-btns">
-        <button class="btn-secondary" onclick="document.getElementById('dupModal').classList.remove('active')">닫기</button>
-        <button class="btn-danger" id="dupDelBtn" onclick="dupDelete()">선택 삭제</button>
+        <button class="btn-secondary" id="dupClose">닫기</button>
+        <button class="btn-danger" id="dupDelete">선택 삭제</button>
       </div>
     </div>
   </div>
 
-  <div class="modal-overlay" id="confirmModal" style="z-index: 250;">
+  <!-- 이름 입력 -->
+  <div class="modal-overlay top" id="inputModal">
     <div class="modal-box">
-      <div class="modal-title" id="confirmText" style="white-space: pre-line; font-size: 1rem;"></div>
+      <div class="modal-title" id="inputModalTitle"></div>
+      <input type="text" id="inputModalField" class="form-input" maxlength="15" enterkeyhint="done">
+      <div class="modal-btns">
+        <button class="btn-secondary" id="inputModalNo">취소</button>
+        <button class="btn-primary flex1" id="inputModalYes">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 확인 -->
+  <div class="modal-overlay top" id="confirmModal">
+    <div class="modal-box">
+      <div class="modal-title" id="confirmText" style="white-space: pre-line; font-size: 1rem; line-height: 1.5;"></div>
       <div class="modal-btns">
         <button class="btn-secondary" id="confirmNo">취소</button>
         <button class="btn-danger" id="confirmYes">확인</button>
@@ -516,891 +594,695 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const PREV_ZONE_RATIO = 0.40; // 좌측 40% 터치 시 이전 단어
+  'use strict';
 
-    let spaces = JSON.parse(localStorage.getItem('my_spaces_db')) || [];
-    let vocab = JSON.parse(localStorage.getItem('my_vocab_db')) || [];
-    let currentTheme = localStorage.getItem('my_vocab_theme') || 'light';
+  /* =========================================================
+     상수
+     ========================================================= */
+  const STORE_KEY = 'vocab3_db';
+  const THEME_KEY = 'vocab3_theme';
+  const PREV_ZONE_RATIO = 0.30;   // 학습 화면 좌측 30% = 이전 단어
+  const PAGE_SIZE = 50;           // 단어 확인 한 페이지 단어 수
+  const PRIORITY_MAX = 10;        // 복습 중요도 상한
+  const SPACE_NAME_MAX = 15;
+  const IMPORT_FALLBACK_SPACE = '가져온 단어';
 
-    let currentSelectTab = 'space'; // 'space' | 'tag'
-    let selectedKeys = [];
-    let studyMode = 'normal';
-    let studyScope = 'select'; // 'select' | 'all'
-    
-    // 학습 히스토리 관리 구조
-    let studyHistory = [];  // { word, round, wasMeaningVisible }
-    let historyIndex = -1;  
-    let currentStudyWord = null;
-    let editingId = null;
-    let listSpace = '';        // 목록 공간 필터 ('' = 전체)
-    let listReviewOnly = false; // 목록 복습만 보기
+  const $ = id => document.getElementById(id);
 
-    const themeSwitch = document.getElementById('themeSwitch');
-    const backBtn = document.getElementById('backBtn');
-    const headerTitle = document.getElementById('headerTitle');
-    const chkReview = document.getElementById('chkReview');
-    const reviewBox = document.getElementById('reviewBox');
-    const btnEditInStudy = document.getElementById('btnEditInStudy');
-
-    let toastTimer = null;
-    function showToast(msg) {
-      const t = document.getElementById('toast');
-      t.textContent = msg;
-      t.classList.add('show');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  /* =========================================================
+     공통 유틸
+     ========================================================= */
+  function newId() {
+    // crypto.randomUUID는 https(또는 localhost)에서만 동작하므로 대체 생성기를 둔다
+    if (window.crypto && typeof crypto.randomUUID === 'function') {
+      try { return crypto.randomUUID(); } catch (e) { /* 대체 생성기로 */ }
     }
-
-    function sortNames(arr) {
-      return [...arr].sort((a, b) => a.localeCompare(b, 'ko-KR', { numeric: true, sensitivity: 'base' }));
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  // "뜻1; 뜻2" → ['뜻1', '뜻2'] (전각 세미콜론도 허용)
+  function parseMeanings(s) {
+    return String(s == null ? '' : s).split(/[;；]/).map(x => x.trim()).filter(Boolean);
+  }
+  function clampPriority(p) {
+    p = parseInt(p, 10);
+    if (!Number.isFinite(p) || p < 1) p = 1;
+    return Math.min(PRIORITY_MAX, p);
+  }
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
     }
+    return a;
+  }
+  const wordKey = w => String(w).trim().toLowerCase();
+  const meaningsKey = ms => ms.map(m => m.toLowerCase()).sort().join('\u0001');
+  const byName = (a, b) => a.name.localeCompare(b.name, 'ko', { numeric: true, sensitivity: 'base' });
+  const byWord = (a, b) => a.word.localeCompare(b.word, 'en', { numeric: true, sensitivity: 'base' }) || a.word.localeCompare(b.word);
+  const sortSpaces = list => [...list].sort(byName);
+  const sortWords = list => [...list].sort(byWord);
 
-    let _idc = 0;
-    function newId() { return Date.now().toString(36) + '-' + (++_idc).toString(36) + '-' + Math.random().toString(36).slice(2, 7); }
-
-    function normalizeVocab() {
-      const seenIds = new Set();
-      vocab.forEach(v => {
-        if (v.weight === undefined) v.weight = 0;
-        if (v.rweight === undefined) v.rweight = 0;
-        if (!Array.isArray(v.tags)) v.tags = v.tags ? [v.tags] : [];
-        delete v.synonyms; // 유의어 데이터 제거
-        v.review = !!v.review;
-        if (v.id === undefined || seenIds.has(v.id)) v.id = newId();
-        seenIds.add(v.id);
-      });
-    }
-
-    function init() {
-      normalizeVocab();
-
-      if (currentTheme === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        themeSwitch.checked = true;
-      }
-      saveData();
-      setupInputShortcuts();
-    }
-
-    function setupInputShortcuts() {
-      const addInputs = [
-        document.getElementById('inputEng'),
-        document.getElementById('inputKor'),
-        document.getElementById('inputTags')
-      ];
-      addInputs.forEach((ipt, idx) => {
-        ipt.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            if (idx < addInputs.length - 1) {
-              addInputs[idx + 1].focus();
-            } else {
-              addSingleWord();
-            }
-          }
-        });
-      });
-    }
-
-    function saveData() {
-      localStorage.setItem('my_spaces_db', JSON.stringify(spaces));
-      localStorage.setItem('my_vocab_db', JSON.stringify(vocab));
-    }
-
-    themeSwitch.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        localStorage.setItem('my_vocab_theme', 'dark');
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-        localStorage.setItem('my_vocab_theme', 'light');
-      }
+  // 한글 조합 중 Enter는 무시 (조합 확정 Enter가 두 번 실행되는 문제 방지)
+  function onEnter(el, fn) {
+    el.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      e.preventDefault();
+      fn();
     });
+  }
 
-    function navTo(secName) {
-      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-      if (secName === 'home') {
-        document.getElementById('sec-home').classList.add('active');
-        backBtn.style.visibility = 'hidden';
-        headerTitle.textContent = '단어장';
-      } else {
-        document.getElementById(`sec-${secName}`).classList.add('active');
-        backBtn.style.visibility = 'visible';
-        if (secName === 'study-select') {
-          headerTitle.textContent = '학습 조건 선택';
-          renderSelectList();
-        } else if (secName === 'add') {
-          headerTitle.textContent = '단어 저장 및 공간 관리';
-          renderSpaceOptions();
-        } else if (secName === 'list') {
-          headerTitle.textContent = '저장 단어 확인';
-          renderFilterChips();
-          renderList();
-        }
-      }
-    }
+  let toastTimer = null;
+  function showToast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+  }
 
-    backBtn.addEventListener('click', () => {
-      const activeSec = document.querySelector('.section.active').id;
-      navTo(activeSec === 'sec-study-exec' && studyScope === 'select' ? 'study-select' : 'home');
+  /* =========================================================
+     데이터 (localStorage)
+     ---------------------------------------------------------
+     db = {
+       spaces: [{ id, name, progress }],   progress = 단일 공간 선택 학습의 회독 상태
+       words:  [{ id, spaceId, word, meanings[], memo, reviewTag, reviewPriority }],
+       lastSession: { mode, spaceIds, temp, state },   이어하기용 (선택 학습만)
+       settings: { lastSpaceId, randomFocus }
+     }
+     회독 상태(state) = {
+       round, order[단어 id, 셔플됨], entries[{ id, rv(뜻 공개), mk(복습 토글), fin(판정 확정) }],
+       cur(현재 위치), floor(되돌아갈 수 있는 최소 위치), reviewed[이번 회독에서 복습 판정된 id]
+     }
+     ========================================================= */
+  function emptyDB() {
+    return { version: 3, spaces: [], words: [], lastSession: null, settings: { lastSpaceId: null, randomFocus: false } };
+  }
+
+  function sanitizeState(st) {
+    if (!st || !Array.isArray(st.entries) || !Array.isArray(st.order)) return null;
+    st.round = Math.max(1, parseInt(st.round, 10) || 1);
+    st.order = st.order.map(String);
+    st.entries = st.entries.filter(e => e && e.id).map(e => ({ id: String(e.id), rv: !!e.rv, mk: !!e.mk, fin: !!e.fin }));
+    st.reviewed = Array.isArray(st.reviewed) ? st.reviewed.map(String) : [];
+    st.cur = Math.max(0, parseInt(st.cur, 10) || 0);
+    st.floor = Math.max(0, parseInt(st.floor, 10) || 0);
+    return st;
+  }
+
+  function normalizeDB(d) {
+    const base = emptyDB();
+    if (!d || typeof d !== 'object') d = base;
+    d.version = 3;
+    d.settings = Object.assign(base.settings, d.settings || {});
+    const sIds = new Set();
+    d.spaces = (Array.isArray(d.spaces) ? d.spaces : []).filter(s => s && typeof s.name === 'string' && s.name.trim()).map(s => {
+      if (!s.id || sIds.has(s.id)) s.id = newId();
+      s.id = String(s.id);
+      sIds.add(s.id);
+      s.name = s.name.trim();
+      s.progress = sanitizeState(s.progress);
+      return s;
     });
-
-    function switchSelectTab(tab) {
-      currentSelectTab = tab;
-      document.getElementById('tabSpaceBtn').classList.toggle('active', tab === 'space');
-      document.getElementById('tabTagBtn').classList.toggle('active', tab === 'tag');
-      document.getElementById('selectGuideText').textContent = tab === 'space' ? '출제할 공간 선택' : '출제할 태그 선택';
-      renderSelectList();
+    const wIds = new Set();
+    d.words = (Array.isArray(d.words) ? d.words : []).filter(w => w && typeof w.word === 'string' && sIds.has(String(w.spaceId))).map(w => {
+      if (!w.id || wIds.has(w.id)) w.id = newId();
+      w.id = String(w.id);
+      wIds.add(w.id);
+      w.spaceId = String(w.spaceId);
+      w.meanings = Array.isArray(w.meanings) ? w.meanings.map(String).map(x => x.trim()).filter(Boolean) : parseMeanings(w.meanings);
+      w.memo = typeof w.memo === 'string' ? w.memo : '';
+      w.reviewTag = !!w.reviewTag;
+      w.reviewPriority = clampPriority(w.reviewPriority);
+      return w;
+    });
+    const ls = d.lastSession;
+    if (!ls || !Array.isArray(ls.spaceIds) || !['normal', 'review'].includes(ls.mode)) d.lastSession = null;
+    else {
+      ls.temp = !!ls.temp;
+      ls.spaceIds = ls.spaceIds.map(String);
+      ls.state = ls.temp ? sanitizeState(ls.state) : null;
+      if (ls.temp && !ls.state) d.lastSession = null;
     }
+    return d;
+  }
 
-    function getAllTags() {
-      const tagSet = new Set();
-      vocab.forEach(v => v.tags.forEach(t => tagSet.add(t)));
-      return sortNames(Array.from(tagSet));
-    }
+  function loadDB() {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { d = null; }
+    return normalizeDB(d);
+  }
 
-    function renderSelectList() {
-      const container = document.getElementById('studySelectList');
-      container.innerHTML = '';
+  function saveDB() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
+    catch (e) { showToast('저장 공간이 부족해 저장하지 못했어요. 백업 후 단어를 정리해주세요.'); }
+  }
 
-      const items = currentSelectTab === 'space' ? sortNames(spaces) : getAllTags();
+  let db = loadDB();
 
-      if (items.length === 0) {
-        container.innerHTML = `<div class="empty-msg">${currentSelectTab === 'space' ? '생성된 공간이 없습니다.' : '등록된 태그가 없습니다.'}</div>`;
-        updateStudyButtonState();
-        return;
-      }
+  const spaceById = id => db.spaces.find(s => s.id === id);
+  const wordById = id => db.words.find(w => w.id === id);
+  const spaceName = id => { const s = spaceById(id); return s ? s.name : '공간 없음'; };
 
-      items.forEach(key => {
-        const pool = vocab.filter(v => currentSelectTab === 'space' ? v.space === key : v.tags.includes(key));
-        const total = pool.length;
-        const rev = pool.filter(v => v.review).length;
+  function createSpace(rawName) {
+    const name = String(rawName || '').trim();
+    if (!name) { showToast('공간 이름을 입력해주세요.'); return null; }
+    if (name.length > SPACE_NAME_MAX) { showToast(`공간 이름은 ${SPACE_NAME_MAX}자까지 쓸 수 있어요.`); return null; }
+    const ex = db.spaces.find(s => s.name === name);
+    if (ex) return { space: ex, existed: true };
+    const s = { id: newId(), name, progress: null };
+    db.spaces.push(s);
+    saveDB();
+    return { space: s, existed: false };
+  }
+  function getOrCreateSpaceByName(name) {
+    let s = db.spaces.find(x => x.name === name);
+    if (!s) { s = { id: newId(), name, progress: null }; db.spaces.push(s); }
+    return s;
+  }
+  // 다른 공간과 이름이 겹치면 " (2)"처럼 번호를 붙인다
+  function uniqueSpaceName(name, exceptId) {
+    const taken = n => db.spaces.some(s => s.name === n && s.id !== exceptId);
+    if (!taken(name)) return name;
+    let i = 2;
+    while (taken(`${name} (${i})`)) i++;
+    return `${name} (${i})`;
+  }
+  function isExactDup(spaceId, word, meanings, exceptId) {
+    const wk = wordKey(word), mk = meaningsKey(meanings);
+    return db.words.some(w => w.id !== exceptId && w.spaceId === spaceId && wordKey(w.word) === wk && meaningsKey(w.meanings) === mk);
+  }
+
+  /* =========================================================
+     모달 · 확인창
+     ========================================================= */
+  const modalStack = [];
+  function openModal(id, onDismiss) {
+    $(id).classList.add('active');
+    modalStack.push({ id, onDismiss });
+  }
+  function closeModal(id) {
+    const i = modalStack.map(m => m.id).lastIndexOf(id);
+    if (i >= 0) modalStack.splice(i, 1);
+    $(id).classList.remove('active');
+  }
+  // 안드로이드 뒤로가기 등으로 가장 위의 모달을 닫음
+  function closeTopModal() {
+    const m = modalStack[modalStack.length - 1];
+    if (!m) return false;
+    if (m.onDismiss) m.onDismiss(); else closeModal(m.id);
+    return true;
+  }
+
+  function askConfirm(msg, yesLabel) {
+    if ($('confirmModal').classList.contains('active')) return Promise.resolve(false);
+    return new Promise(resolve => {
+      const yes = $('confirmYes'), no = $('confirmNo');
+      $('confirmText').textContent = msg;
+      yes.textContent = yesLabel || '확인';
+      const done = v => { closeModal('confirmModal'); yes.onclick = no.onclick = null; resolve(v); };
+      yes.onclick = () => done(true);
+      no.onclick = () => done(false);
+      openModal('confirmModal', () => done(false));
+    });
+  }
+
+  function askInput(title, value) {
+    if ($('inputModal').classList.contains('active')) return Promise.resolve(null);
+    return new Promise(resolve => {
+      const field = $('inputModalField'), yes = $('inputModalYes'), no = $('inputModalNo');
+      $('inputModalTitle').textContent = title;
+      field.value = value || '';
+      const done = v => { closeModal('inputModal'); yes.onclick = no.onclick = null; field.onkeydown = null; resolve(v); };
+      yes.onclick = () => done(field.value);
+      no.onclick = () => done(null);
+      field.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); done(field.value); } };
+      openModal('inputModal', () => done(null));
+      setTimeout(() => field.focus(), 50);
+    });
+  }
+
+  function showWordListModal(title, words, onClose, btnLabel) {
+    $('wlTitle').textContent = title;
+    $('wlSub').textContent = `${words.length}개 단어`;
+    $('wlList').innerHTML = words.map(w => `
+      <div class="word-item static">
+        <div class="word-item-info">
+          <div class="word-item-eng">${escapeHtml(w.word)}</div>
+          <div class="word-item-kor">${escapeHtml(w.meanings.join('; '))}</div>
+        </div>
         
-        const field = 'weight';
-        const minW = total > 0 ? Math.min(...pool.map(v => v[field] || 0)) : 0;
-        const doneCount = pool.filter(v => (v[field] || 0) > minW).length;
-        const roundNum = minW + 1;
-        const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+      </div>`).join('');
+    $('wlBtn').textContent = btnLabel || '확인';
+    const close = () => { closeModal('wordListModal'); if (onClose) onClose(); };
+    $('wlBtn').onclick = close;
+    openModal('wordListModal', close);
+  }
 
-        const card = document.createElement('div');
-        card.className = 'space-card-item';
+  /* =========================================================
+     화면 이동 + 안드로이드 뒤로가기 처리
+     ========================================================= */
+  let currentSec = 'home';
+  const TITLES = { home: '단어장', 'study-select': '선택 학습', 'study-exec': '', add: '단어 저장', list: '단어 확인' };
+
+  let histPushed = false, ignorePop = false;
+  function enterHistory() {
+    if (!histPushed) { history.pushState({ vocab: 1 }, ''); histPushed = true; }
+  }
+  function leaveHistory() {
+    if (histPushed) { histPushed = false; ignorePop = true; history.back(); }
+  }
+  window.addEventListener('popstate', () => {
+    if (ignorePop) { ignorePop = false; return; }
+    histPushed = false;
+    if (closeTopModal()) { if (currentSec !== 'home') enterHistory(); return; }
+    if (S && S.editing) { closeInlineEdit(); enterHistory(); return; }
+    if (currentSec !== 'home') {
+      handleBack();
+      if (currentSec !== 'home') enterHistory();
+    }
+  });
+
+  function navTo(sec) {
+    document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === `sec-${sec}`));
+    currentSec = sec;
+    $('backBtn').style.visibility = sec === 'home' ? 'hidden' : 'visible';
+    $('headerTitle').textContent = TITLES[sec] || '';
+    $('btnSpaceEdit').style.display = sec === 'study-select' ? '' : 'none';
+    if (sec === 'home') { renderHome(); leaveHistory(); }
+    else enterHistory();
+    if (sec === 'study-select') setEditMode(false);
+    if (sec === 'add') renderAddSpaces();
+    if (sec === 'list') { listPage = 1; renderList(); }
+  }
+
+  function handleBack() {
+    if (currentSec === 'study-exec') { exitStudy(); return; }
+    navTo('home');
+  }
+  $('backBtn').addEventListener('click', handleBack);
+
+  /* =========================================================
+     테마
+     ========================================================= */
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    $('themeSwitch').checked = t === 'dark';
+    $('metaTheme').setAttribute('content', t === 'dark' ? '#121212' : '#f8f9fa');
+  }
+  $('themeSwitch').addEventListener('change', e => {
+    const t = e.target.checked ? 'dark' : 'light';
+    try { localStorage.setItem(THEME_KEY, t); } catch (err) { /* 무시 */ }
+    applyTheme(t);
+  });
+
+  /* =========================================================
+     홈
+     ========================================================= */
+  function buildPoolIds(mode, spaceIds) {
+    const set = new Set(spaceIds);
+    return db.words.filter(w => set.has(w.spaceId) && (mode !== 'review' || w.reviewTag)).map(w => w.id);
+  }
+
+  function getResumeInfo() {
+    const ls = db.lastSession;
+    if (!ls) return null;
+    const ids = ls.spaceIds.filter(id => spaceById(id));
+    if (!ids.length) { db.lastSession = null; saveDB(); return null; }
+    const pool = buildPoolIds(ls.mode, ids);
+    if (!pool.length) return null;
+    const st = ls.temp ? ls.state : spaceById(ids[0]).progress;
+    const poolSet = new Set(당구);
+    const done = st ? st.entries.filter(e => e.rv && poolSet.has(e.id)).length : 0;
+    const pct = Math.min(100, Math.round(done / pool.length * 100));
+    const label = ls.mode === 'review' ? '복습 단어만' : ids.length > 1 ? '여러 공간' : '선택 학습';
+    return { names: sortSpaces(ids.map(spaceById)).map(s => s.name).join(', '), round: st ? st.round : 1, done, total: pool.length, pct, label };
+  }
+
+  function renderHome() {
+    const box = $('resumeCard');
+    const info = getResumeInfo();
+    const icon = '<span class="card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg></span>';
+    if (!info) {
+      box.className = 'resume-card empty';
+      box.innerHTML = `${icon}<p>가장 최근 진행한 학습이 표시됩니다</p>`;
+      return;
+    }
+    box.className = 'resume-card';
+    box.innerHTML = `
+      <div class="resume-head">
+        ${icon}
+        <div class="card-text">
+          <h2>이어하기</h2>
+          <div class="resume-names">${escapeHtml(info.names)}</div>
+        </div>
+        <span class="resume-mode">${escapeHtml(info.label)}</span>
+      </div>
+      <div class="progress-info"><span>${info.round}회독 · ${info.done} / ${info.total}</span><span>${info.pct}%</span></div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${info.pct}%"></div></div>`;
+  }
+  $('resumeCard').addEventListener('click', () => { if (db.lastSession && getResumeInfo()) resumeStudy(); });
+  $('cardSelect').addEventListener('click', () => navTo('study-select'));
+  $('cardRandom').addEventListener('click', openRandomSetup);
+  $('cardAdd').addEventListener('click', () => navTo('add'));
+  $('cardList').addEventListener('click', () => navTo('list'));
+
+  /* =========================================================
+     선택 학습: 공간 선택 · 공간 편집
+     ========================================================= */
+  let editMode = false;
+  const selectedSpaceIds = new Set();
+
+  function setEditMode(on) {
+    editMode = on;
+    $('btnSpaceEdit').textContent = on ? '완료' : '공간 편집';
+    $('selectNormalBar').style.display = on ? 'none' : '';
+    $('selectEditBar').style.display = on ? '' : 'none';
+    $('btnSelectAll').style.display = on ? 'none' : '';
+    $('selectGuide').textContent = on ? '공간 이름 변경·삭제' : '학습할 공간 선택';
+    renderSelectList();
+  }
+  $('btnSpaceEdit').addEventListener('click', () => setEditMode(!editMode));
+
+  function spaceStatsMap() {
+    const map = new Map(db.spaces.map(s => [s.id, { total: 0, rev: 0, ids: new Set() }]));
+    db.words.forEach(w => {
+      const m = map.get(w.spaceId);
+      if (!m) return;
+      m.total++;
+      if (w.reviewTag) m.rev++;
+      m.ids.add(w.id);
+    });
+    return map;
+  }
+
+  function renderSelectList() {
+    const box = $('studySelectList');
+    [...selectedSpaceIds].forEach(id => { if (!spaceById(id)) selectedSpaceIds.delete(id); });
+    const spaces = sortSpaces(db.spaces);
+    if (!spaces.length) {
+      box.innerHTML = `<div class="empty-msg">아직 공간이 없어요.<br>${editMode ? '아래에서 새 공간을 만들어보세요.' : '오른쪽 위 편집이나 단어 저장에서 공간을 만들 수 있어요.'}</div>`;
+      updateSelectButtons();
+      return;
+    }
+    const stats = spaceStatsMap();
+    box.innerHTML = '';
+    spaces.forEach(s => {
+      const m = stats.get(s.id);
+      const p = s.progress;
+      const done = p ? p.entries.filter(e => e.rv && m.ids.has(e.id)).length : 0;
+      const round = p ? p.round : 1;
+      const pct = m.total ? Math.min(100, Math.round(done / m.total * 100)) : 0;
+      const meta = `${m.total}단어${m.rev ? ` · 복습 ${m.rev}` : ''}`;
+      const card = document.createElement('div');
+
+      if (editMode) {
+        card.className = 'space-card-item editing';
         card.innerHTML = `
           <div class="space-card-header">
-            <label class="space-card-title" onclick="event.stopPropagation();">
-              <input type="checkbox" value="${escapeHtml(key)}" onchange="updateStudyButtonState()">
-              <span>${currentSelectTab === 'tag' ? '#' : ''}${escapeHtml(key)}</span>
+            <span class="space-card-title"><span>${escapeHtml(s.name)}</span></span>
+            <span class="space-meta">${meta}</span>
+          </div>
+          <div class="edit-actions">
+            <button class="btn-mini" data-act="rename">이름 변경</button>
+            <button class="btn-mini danger" data-act="delete">삭제</button>
+          </div>`;
+        card.querySelector('[data-act="rename"]').onclick = () => renameSpace(s.id);
+        card.querySelector('[data-act="delete"]').onclick = () => deleteSpace(s.id);
+      } else {
+        const checked = selectedSpaceIds.has(s.id);
+        card.className = 'space-card-item' + (checked ? ' selected' : '');
+        card.innerHTML = `
+          <div class="space-card-header">
+            <label class="space-card-title">
+              <input type="checkbox" ${checked ? 'checked' : ''}>
+              <span>${escapeHtml(s.name)}</span>
             </label>
-            <span style="font-size: 0.8rem; color: var(--text-sub);">${total}단어 ${rev ? `· 복습 ${rev}` : ''}</span>
+            <span class="space-meta">${meta}</span>
           </div>
           <div class="progress-box">
-            <div class="progress-info">
-              <span>${roundNum}회독 진행 중 (${doneCount}/${total})</span>
-              <span>${percent}%</span>
-            </div>
-            <div class="progress-bar-bg">
-              <div class="progress-bar-fill" style="width: ${percent}%;"></div>
-            </div>
-          </div>
-        `;
-        card.onclick = (e) => {
-          if (e.target.tagName !== 'INPUT') {
-            const cb = card.querySelector('input[type="checkbox"]');
-            cb.checked = !cb.checked;
-            updateStudyButtonState();
-          }
+            <div class="progress-info"><span>${round}회독 진행 중 (${done}/${m.total})</span><span>${pct}%</span></div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+          </div>`;
+        const cb = card.querySelector('input');
+        const setSel = on => {
+          if (on) selectedSpaceIds.add(s.id); else selectedSpaceIds.delete(s.id);
+          cb.checked = on;
+          card.classList.toggle('selected', on);
+          updateSelectButtons();
         };
-        container.appendChild(card);
-      });
-
-      updateStudyButtonState();
-    }
-
-    function toggleSelectAll() {
-      const cbs = document.querySelectorAll('#studySelectList input[type="checkbox"]');
-      const allChecked = Array.from(cbs).every(cb => cb.checked);
-      cbs.forEach(cb => cb.checked = !allChecked);
-      updateStudyButtonState();
-    }
-
-    function updateStudyButtonState() {
-      const has = document.querySelectorAll('#studySelectList input[type="checkbox"]:checked').length > 0;
-      document.getElementById('btnResetData').disabled = !has;
-      document.getElementById('btnReviewStudy').disabled = !has;
-      document.getElementById('btnStartStudy').disabled = !has;
-    }
-
-    // 브라우저 confirm()은 일부 환경에서 막혀 조용히 무시되므로 앱 안의 확인 창을 사용
-    function askConfirm(msg, yesLabel) {
-      return new Promise(resolve => {
-        const m = document.getElementById('confirmModal'), yes = document.getElementById('confirmYes'), no = document.getElementById('confirmNo');
-        document.getElementById('confirmText').textContent = msg;
-        yes.textContent = yesLabel || '확인';
-        const done = v => { m.classList.remove('active'); yes.onclick = no.onclick = null; resolve(v); };
-        yes.onclick = () => done(true);
-        no.onclick = () => done(false);
-        m.classList.add('active');
-      });
-    }
-
-    async function resetSelectedData() {
-      const selected = Array.from(document.querySelectorAll('#studySelectList input[type="checkbox"]:checked')).map(cb => cb.value);
-      if (selected.length === 0) return;
-
-      if (await askConfirm('선택한 항목 단어들의 회독 기록을 초기화하시겠습니까?', '초기화')) {
-        vocab.forEach(item => {
-          const match = currentSelectTab === 'space' ? selected.includes(item.space) : item.tags.some(t => selected.includes(t));
-          if (match) { item.weight = 0; item.rweight = 0; }
-        });
-        saveData();
-        renderSelectList();
-        showToast('회독 기록이 초기화되었습니다.');
+        cb.addEventListener('click', e => e.stopPropagation());
+        cb.addEventListener('change', () => setSel(cb.checked));
+        card.querySelector('label').addEventListener('click', e => e.stopPropagation());
+        card.addEventListener('click', () => setSel(!cb.checked));
       }
-    }
-
-    function getStudyPool() {
-      if (studyScope === 'all') return vocab.slice();
-      return vocab.filter(v => {
-        const match = currentSelectTab === 'space' ? selectedKeys.includes(v.space) : v.tags.some(t => selectedKeys.includes(t));
-        return match && (studyMode === 'normal' || v.review);
-      });
-    }
-
-    function startRandomAll() {
-      if (vocab.length === 0) { showToast('저장된 단어가 없습니다.'); return; }
-      studyScope = 'all';
-      studyMode = 'normal';
-      document.getElementById('studyArea').classList.add('random-mode');
-      studyHistory = [];
-      historyIndex = -1;
-      currentStudyWord = null;
-      navTo('study-exec');
-      headerTitle.textContent = '랜덤 학습';
-      nextStudyWord();
-    }
-
-    function startStudyExecution(mode) {
-      studyScope = 'select';
-      document.getElementById('studyArea').classList.remove('random-mode');
-      studyMode = mode; rs = {};
-      selectedKeys = Array.from(document.querySelectorAll('#studySelectList input[type="checkbox"]:checked')).map(cb => cb.value);
-
-      if (getStudyPool().length === 0) {
-        showToast(mode === 'review' ? '선택한 조건에 복습 단어가 없습니다.' : '선택한 조건에 등록된 단어가 없습니다.');
-        return;
-      }
-
-      studyHistory = [];
-      historyIndex = -1;
-      currentStudyWord = null;
-      
-      navTo('study-exec');
-      headerTitle.textContent = mode === 'review' ? '복습 집중 학습' : '랜덤 학습';
-      nextStudyWord();
-    }
-
-    let rs = {}; // 복습 집중 학습 임시 회독 (저장 안 함)
-    function syncRs(pool) {
-      if (studyMode !== 'review') return;
-      const have = pool.filter(w => w.id in rs).map(w => rs[w.id]);
-      const base = have.length ? Math.min(...have) : 0;
-      pool.forEach(w => { if (!(w.id in rs)) rs[w.id] = base; });
-    }
-    function cnt(w) { return studyMode === 'review' ? (rs[w.id] || 0) : (w.weight || 0); }
-    function bump(w) { if (studyMode === 'review') rs[w.id] = cnt(w) + 1; else w.weight = (w.weight || 0) + 1; }
-
-    function pickWord(pool) {
-      syncRs(pool);
-      const min = Math.min(...pool.map(cnt));
-      let c = pool.filter(w => cnt(w) === min);
-      if (c.length > 1 && currentStudyWord) c = c.filter(w => w.id !== currentStudyWord.id); // 직전 단어 제외
-      return { word: c[Math.floor(Math.random() * c.length)], round: min + 1 };
-    }
-
-    function updateStudyProgressBar() {
-      const it = studyHistory[historyIndex];
-      if (!it || !it.total) return;
-      const shown = it.done + (it.wasMeaningVisible ? 1 : 0); // 뜻을 공개해야 1 올라감
-      const percent = Math.round((shown / it.total) * 100);
-      document.getElementById('studyRoundText').textContent = `${studyMode === 'review' ? '복습 ' : ''}${it.round}회독 진행 중`;
-      document.getElementById('studyRatioText').textContent = `${shown} / ${it.total} (${percent}%)`;
-      document.getElementById('studyProgressBar').style.width = `${percent}%`;
-    }
-
-    function showStudyWord() {
-      if (!currentStudyWord) return;
-
-      document.getElementById('studyWord').textContent = currentStudyWord.eng;
-      { const m = document.getElementById('studyMeaning'), k = currentStudyWord.kor;
-        m.textContent = k.replace(/;(?=\S)/g, ';\u200b'); // ; 뒤에서도 필요할 때만 줄바꿈
-        m.style.fontSize = k.length > 80 ? '1.05rem' : k.length > 40 ? '1.3rem' : ''; }
-      chkReview.checked = !!currentStudyWord.review;
-
-      document.getElementById('studySpaceText').textContent = currentStudyWord.space || '공간 없음';
-
-      const tagGroup = document.getElementById('studyTagGroup');
-      tagGroup.innerHTML = (currentStudyWord.tags || []).map(t => `<span class="tag-badge">#${escapeHtml(t)}</span>`).join('');
-
-      updateStudyProgressBar();
-    }
-
-    function renderStudyScreenFromHistory() {
-      const currentItem = studyHistory[historyIndex];
-      if (!currentItem) return;
-
-      currentStudyWord = currentItem.word;
-      showStudyWord();
-
-      const meaningElem = document.getElementById('studyMeaning');
-      if (currentItem.wasMeaningVisible) {
-        meaningElem.classList.add('visible');
-        document.getElementById('studyTagGroup').classList.add('visible');
-        reviewBox.classList.add('visible');
-        btnEditInStudy.classList.add('visible');
-      } else {
-        meaningElem.classList.remove('visible');
-        document.getElementById('studyTagGroup').classList.remove('visible');
-        reviewBox.classList.remove('visible');
-        btnEditInStudy.classList.remove('visible');
-      }
-
-      updateStudyHintText();
-    }
-
-    function updateStudyHintText() {
-      const hintElem = document.getElementById('studyHint');
-      const currentItem = studyHistory[historyIndex];
-      const hasPrev = historyIndex > 0;
-
-      if (!currentItem.wasMeaningVisible) {
-        hintElem.textContent = hasPrev ? "좌측: 이전 단어 | 우측: 뜻 공개" : "화면을 터치하면 뜻이 공개됩니다";
-      } else {
-        hintElem.textContent = hasPrev ? "좌측: 이전 단어 | 우측: 다음 단어" : "화면을 터치하면 다음 단어로 넘어갑니다";
-      }
-    }
-
-    function nextStudyWord() {
-      // 이미 지나온 히스토리가 존재하는 경우 기존에 지나간 단어 유지
-      if (historyIndex < studyHistory.length - 1) {
-        historyIndex++;
-        renderStudyScreenFromHistory();
-        return;
-      }
-
-      // 새 단어를 추첨해야 하는 경우
-      const pool = getStudyPool();
-      if (pool.length === 0) {
-        document.getElementById('studyWord').textContent = "단어가 없습니다";
-        document.getElementById('studyMeaning').textContent = "";
-        currentStudyWord = null;
-        return;
-      }
-
-      const field = studyMode === 'review' ? 'rweight' : 'weight';
-      let picked, done = 0;
-      let completedRound = 0;
-      if (studyScope === 'all') {
-        let cand = pool;
-        if (pool.length > 1 && currentStudyWord) cand = pool.filter(w => w.id !== currentStudyWord.id);
-        picked = { word: cand[Math.floor(Math.random() * cand.length)], round: 0 };
-      } else {
-        picked = pickWord(pool);
-        bump(picked.word);
-        saveData();
-        const minAfter = Math.min(...pool.map(cnt)); done = Math.max(0, pool.filter(w => cnt(w) >= picked.round).length - 1); // 이번 회독에서 이미 본 단어 수
-        if (minAfter > picked.round - 1) completedRound = picked.round;
-      }
-
-      studyHistory.push({
-        word: picked.word,
-        round: picked.round,
-        completedRound, done, total: pool.length,
-        wasMeaningVisible: false
-      });
-      if (studyHistory.length > 2) studyHistory.shift(); // 직전 단어 1개까지만 보관
-      historyIndex = studyHistory.length - 1;
-
-      renderStudyScreenFromHistory();
-    }
-
-    function goPreviousStudyWord() {
-      if (historyIndex <= 0) return;
-      historyIndex--;
-      renderStudyScreenFromHistory();
-    }
-
-    chkReview.addEventListener('change', () => {
-      if (!currentStudyWord) return;
-      currentStudyWord.review = chkReview.checked;
-      if (!chkReview.checked) delete rs[currentStudyWord.id];
-      saveData();
+      box.appendChild(card);
     });
+    updateSelectButtons();
+  }
 
-    document.getElementById('studyArea').addEventListener('click', (e) => {
-      if (!currentStudyWord || historyIndex < 0) return;
+  function updateSelectButtons() {
+    const has = selectedSpaceIds.size > 0;
+    $('btnResetData').disabled = !has;
+    $('btnReviewStudy').disabled = !has;
+    $('btnStartStudy').disabled = !has;
+  }
 
-      const rect = e.currentTarget.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const currentItem = studyHistory[historyIndex];
+  $('btnSelectAll').addEventListener('click', () => {
+    const all = db.spaces.length && db.spaces.every(s => selectedSpaceIds.has(s.id));
+    selectedSpaceIds.clear();
+    if (!all) db.spaces.forEach(s => selectedSpaceIds.add(s.id));
+    renderSelectList();
+  });
 
-      // 좌측 40% 터치 시 이전 단어로 이동
-      if (clickX < rect.width * PREV_ZONE_RATIO && historyIndex > 0) {
-        goPreviousStudyWord();
-        return;
-      }
+  $('btnResetData').addEventListener('click', async () => {
+    const ids = [...selectedSpaceIds];
+    if (!ids.length) return;
+    const ok = await askConfirm(`선택한 공간 ${ids.length}개의 진행률과 회독 수를 초기화할까요?\n단어와 복습 태그는 그대로 남아요.`, '초기화');
+    if (!ok) return;
+    ids.forEach(id => { const s = spaceById(id); if (s) s.progress = null; });
+    saveDB();
+    renderSelectList();
+    showToast('진행률과 회독 수를 초기화했어요.');
+  });
+  $('btnStartStudy').addEventListener('click', () => startSelectStudy('normal'));
+  $('btnReviewStudy').addEventListener('click', () => startSelectStudy('review'));
 
-      // 우측 터치 시 뜻 공개 또는 다음 단어로 이동
-      if (!currentItem.wasMeaningVisible) {
-        currentItem.wasMeaningVisible = true;
-        updateStudyProgressBar();
-        document.getElementById('studyMeaning').classList.add('visible');
-        document.getElementById('studyTagGroup').classList.add('visible');
-        reviewBox.classList.add('visible');
-        btnEditInStudy.classList.add('visible');
-        updateStudyHintText();
-      } else {
-        if (currentItem.completedRound && !currentItem.roundToastShown && historyIndex === studyHistory.length - 1) {
-          currentItem.roundToastShown = true;
-          showToast(`${studyMode === 'review' ? '복습 ' : ''}${currentItem.completedRound}회독을 완료했어요`);
-        }
-        nextStudyWord();
-      }
+  async function renameSpace(id) {
+    const s = spaceById(id);
+    if (!s) return;
+    const v = await askInput('공간 이름 변경', s.name);
+    if (v === null) return;
+    const name = v.trim();
+    if (!name) { showToast('공간 이름을 입력해주세요.'); return; }
+    if (name === s.name) return;
+    if (db.spaces.some(x => x.name === name && x.id !== id)) { showToast('이미 있는 공간 이름이에요.'); return; }
+    s.name = name;
+    saveDB();
+    renderSelectList();
+    showToast('이름을 바꿨어요.');
+  }
+
+  async function deleteSpace(id) {
+    const s = spaceById(id);
+    if (!s) return;
+    const n = db.words.filter(w => w.spaceId === id).length;
+    const ok = await askConfirm(`'${s.name}' 공간을 삭제할까요?\n${n ? `안에 있는 단어 ${n}개도 함께 삭제돼요.` : '비어 있는 공간이에요.'}`, '삭제');
+    if (!ok) return;
+    db.spaces = db.spaces.filter(x => x.id !== id);
+    db.words = db.words.filter(w => w.spaceId !== id);
+    if (db.settings.lastSpaceId === id) db.settings.lastSpaceId = null;
+    selectedSpaceIds.delete(id);
+    saveDB();
+    renderSelectList();
+    showToast('삭제했어요.');
+  }
+
+  function editModeCreateSpace() {
+    const r = createSpace($('editNewSpace').value);
+    if (!r) return;
+    if (r.existed) { showToast('이미 있는 공간이에요.'); return; }
+    $('editNewSpace').value = '';
+    renderSelectList();
+    showToast(`'${r.space.name}' 공간을 만들었어요.`);
+  }
+  $('btnEditNewSpace').addEventListener('click', editModeCreateSpace);
+  onEnter($('editNewSpace'), editModeCreateSpace);
+
+  /* =========================================================
+     학습 엔진 (선택 학습 · 랜덤 학습 공통)
+     ========================================================= */
+  let S = null; // 현재 학습 세션
+
+  const newEntry = id => ({ id, rv: false, mk: false, fin: false });
+  const curEntry = () => (S ? S.st.entries[S.st.cur] : null);
+
+  // 되돌아갈 수 있는 범위: 직전 단어 1개까지 (재개 지점 이전으로는 불가)
+  function canGoPrev() {
+    const st = S.st;
+    return st.cur > Math.max(st.floor, st.entries.length - 2);
+  }
+
+  // 복습 판정 확정: 뜻을 본 단어만, 한 노출에 한 번
+  function finalizeEntry(st, e) {
+    if (!e || e.fin || !e.rv) return;
+    e.fin = true;
+    const w = wordById(e.id);
+    if (!w) return;
+    if (e.mk) {
+      if (!w.reviewTag) { w.reviewTag = true; w.reviewPriority = 1; }   // 첫 태깅: 태그만
+      else w.reviewPriority = clampPriority(w.reviewPriority + 2);       // 이미 태그됨: +2
+      if (!st.reviewed.includes(w.id)) st.reviewed.push(w.id);
+    } else if (w.reviewTag) {
+      w.reviewPriority = clampPriority(w.reviewPriority - 1);            // 알고 넘어감: -1 (하한 1)
+    }
+  }
+
+  function newRoundState(round, poolIds, avoidFirstId) {
+    const order = shuffle(poolIds.slice());
+    // 새 회독의 첫 단어가 직전 회독의 마지막 단어와 같지 않게 교환
+    if (avoidFirstId && order.length > 1 && order[0] === avoidFirstId) {
+      const j = 1 + Math.floor(Math.random() * (order.length - 1));
+      [order[0], order[j]] = [order[j], order[0]];
+    }
+    return { round, order, entries: order.length ? [newEntry(order[0])] : [], cur: 0, floor: 0, reviewed: [] };
+  }
+
+  // 저장된 회독 상태를 현재 단어 목록과 맞춤 (삭제·이동된 단어 제거, 새 단어는 남은 구간에 무작위 삽입)
+  function syncSelectState(st, poolIds) {
+    const pool = new Set(poolIds);
+    let removedBeforeCur = 0;
+    const kept = [];
+    st.entries.forEach((e, i) => {
+      if (pool.has(e.id)) kept.push(e);
+      else if (i < st.cur) removedBeforeCur++;
     });
+    st.entries = kept;
+    const visited = new Set(kept.map(e => e.id));
+    const rest = st.order.filter(id => pool.has(id) && !visited.has(id));
+    const known = new Set([...visited, ...rest]);
+    poolIds.forEach(id => {
+      if (known.has(id)) return;
+      rest.splice(Math.floor(Math.random() * (rest.length + 1)), 0, id);
+      known.add(id);
+    });
+    st.order = [...kept.map(e => e.id), ...rest];
+    st.reviewed = st.reviewed.filter(id => pool.has(id));
+    if (!st.entries.length && st.order.length) st.entries.push(newEntry(st.order[0]));
+    st.cur = Math.min(Math.max(0, st.cur - removedBeforeCur), Math.max(0, st.entries.length - 1));
+    st.floor = Math.min(st.floor, st.cur);
+  }
 
-    function renderSpaceOptions() {
-      const saveSelect = document.getElementById('saveSpaceSelect');
-      const editSelect = document.getElementById('editSpaceSelect');
-      saveSelect.innerHTML = '<option value="">(비어 있음)</option>';
-      editSelect.innerHTML = '<option value="">(비어 있음)</option>';
-
-      sortNames(spaces).forEach(sp => {
-        [saveSelect, editSelect].forEach(sel => {
-          const opt = document.createElement('option');
-          opt.value = sp;
-          opt.textContent = sp;
-          sel.appendChild(opt);
-        });
-      });
+  // 세션 상태를 저장 위치에 연결: 단일 공간은 공간 진행률, 임시 세션은 이어하기 슬롯
+  function bindState() {
+    if (S.temp) db.lastSession = { mode: S.mode, spaceIds: S.spaceIds, temp: true, state: S.st };
+    else {
+      spaceById(S.spaceIds[0]).progress = S.st;
+      db.lastSession = { mode: S.mode, spaceIds: S.spaceIds, temp: false, state: null };
     }
+  }
 
-    function toggleBatchAccordion() {
-      const content = document.getElementById('batchAccordionContent');
-      const open = content.classList.toggle('open');
-      document.getElementById('accordionArrow').textContent = open ? 'v' : '>';
+  function startSelectStudy(mode) {
+    const ids = [...selectedSpaceIds].filter(id => spaceById(id));
+    if (!ids.length) return;
+    const temp = mode === 'review' || ids.length > 1;   // 다중 공간 · 복습 단어만 = 임시 진행
+    const st = temp ? null : spaceById(ids[0]).progress;
+    openSelectSession({ mode, spaceIds: ids, temp, st, origin: 'study-select' });
+  }
+
+  function resumeStudy() {
+    const ls = db.lastSession;
+    if (!ls) return;
+    const ids = ls.spaceIds.filter(id => spaceById(id));
+    if (!ids.length) { renderHome(); return; }
+    const st = ls.temp ? ls.state : spaceById(ids[0]).progress;
+    if (!openSelectSession({ mode: ls.mode, spaceIds: ids, temp: ls.temp, st, origin: 'home' })) renderHome();
+  }
+
+  function openSelectSession(cfg) {
+    const pool = buildPoolIds(cfg.mode, cfg.spaceIds);
+    if (!pool.length) {
+      showToast(cfg.mode === 'review' ? '선택한 공간에 복습 단어가 없어요.' : '선택한 공간에 단어가 없어요.');
+      return false;
     }
+    let st = cfg.st;
+    if (st) syncSelectState(st, pool);
+    if (!st || !st.entries.length) st = newRoundState(st ? st.round : 1, pool, null);
+    // 지난 접속에서 확정되지 않은 판정은 정리하고(현재 단어 제외), 재개 지점 이전으로는 돌아가지 않음
+    st.entries.forEach((e, i) => { if (i !== st.cur) finalizeEntry(st, e); });
+    st.floor = st.cur;
 
-    function createNewSpace() {
-      const name = document.getElementById('newSpaceName').value.trim();
-      if (!name) { showToast('공간 이름을 입력해주세요.'); return; }
-      if (spaces.includes(name)) { showToast('이미 존재하는 공간입니다.'); return; }
+    S = { kind: 'select', mode: cfg.mode, spaceIds: cfg.spaceIds, temp: cfg.temp, st, origin: cfg.origin, editing: false };
+    bindState();
+    saveDB();
+    navTo('study-exec');
+    $('headerTitle').textContent = cfg.mode === 'review' ? '복습 단어만' : '선택 학습';
+    renderStudy();
+    return true;
+  }
 
-      spaces.push(name);
-      saveData();
-      document.getElementById('newSpaceName').value = '';
-      renderSpaceOptions();
-      showToast(`'${name}' 공간이 생성되었습니다.`);
+  /* ---------- 랜덤 학습 ---------- */
+  function openRandomSetup() {
+    if (!db.words.length) { showToast('저장된 단어가 없어요. 먼저 단어를 저장해주세요.'); return; }
+    const rev = db.words.filter(w => w.reviewTag).length;
+    $('randomInfo').textContent = `전체 ${db.words.length}단어 · 복습 단어 ${rev}개`;
+    $('chkFocus').checked = !!db.settings.randomFocus && rev > 0;
+    openModal('randomModal');
+  }
+  $('randomCancel').addEventListener('click', () => closeModal('randomModal'));
+  $('randomStart').addEventListener('click', () => {
+    const focus = $('chkFocus').checked;
+    if (focus && !db.words.some(w => w.reviewTag)) { showToast('복습 태그된 단어가 없어요.'); return; }
+    db.settings.randomFocus = focus;
+    saveDB();
+    closeModal('randomModal');
+    S = { kind: 'random', focus, st: { entries: [], cur: 0, floor: 0, count: 0, reviewed: [] }, origin: 'home', editing: false };
+    S.st.entries.push(newEntry(drawRandomId()));
+    navTo('study-exec');
+    $('headerTitle').textContent = focus ? '복습 집중' : '랜덤 학습';
+    renderStudy();
+  });
+
+  // 집중 모드: 출제 확률 = 중요도 / 후보 중요도 합 (직전 단어는 연속 출제 방지를 위해 후보에서 제외)
+  function drawRandomId() {
+    let pool = S.focus ? db.words.filter(w => w.reviewTag) : db.words;
+    if (!pool.length) return null;
+    const last = S.st.entries[S.st.entries.length - 1];
+    if (pool.length > 1 && last) pool = pool.filter(w => w.id !== last.id);
+    if (S.focus) {
+      const total = pool.reduce((a, w) => a + w.reviewPriority, 0);
+      let r = Math.random() * total;
+      for (const w of pool) { r -= w.reviewPriority; if (r < 0) return w.id; }
+      return pool[pool.length - 1].id;
     }
+    return pool[Math.floor(Math.random() * pool.length)].id;
+  }
 
-    function renameSpace() {
-      const oldName = document.getElementById('editSpaceSelect').value;
-      const newName = document.getElementById('renameSpaceName').value.trim();
+  /* ---------- 진행 동작 ---------- */
+  function revealCurrent() {
+    const e = curEntry();
+    if (!e || e.rv) return;
+    e.rv = true;                               // 뜻을 공개한 순간 카운트 (항목당 1회)
+    if (S.kind === 'random') S.st.count++;
+    saveDB();
+    renderStudy();
+  }
 
-      if (!oldName || !newName) { showToast('공간 선택 및 바꿀 이름을 입력해주세요.'); return; }
-      if (newName === oldName) { showToast('현재와 같은 이름입니다.'); return; }
-      if (spaces.includes(newName)) { showToast('이미 존재하는 공간 이름입니다.'); return; }
+  function goPrev() {
+    S.st.cur--;
+    saveDB();
+    renderStudy();
+  }
 
-      const idx = spaces.indexOf(oldName);
-      if (idx !== -1) {
-        spaces[idx] = newName;
-        vocab.forEach(v => { if (v.space === oldName) v.space = newName; });
-        saveData();
-        document.getElementById('renameSpaceName').value = '';
-        renderSpaceOptions();
-        showToast('수정되었습니다.');
-      }
+  function goNext() {
+    const st = S.st;
+    if (st.cur < st.entries.length - 1) {      // 이미 지나온 단어로 복귀한 상태 → 기존 순서대로 앞으로
+      st.cur++;
+      saveDB();
+      renderStudy();
+      return;
     }
-
-    async function deleteSpace() {
-      const target = document.getElementById('editSpaceSelect').value;
-      if (!target) return;
-
-      const wordCount = vocab.filter(v => v.space === target).length;
-      if (await askConfirm(`'${target}' 공간을 삭제하시겠습니까?\n${wordCount > 0 ? `안에 있는 단어 ${wordCount}개도 함께 삭제됩니다.` : '비어 있는 공간입니다.'}`, '삭제')) {
-        spaces = spaces.filter(s => s !== target);
-        vocab = vocab.filter(v => v.space !== target);
-        saveData();
-        renderSpaceOptions();
-        showToast('삭제되었습니다.');
-      }
-    }
-
-    function parseCommaList(str) {
-      if (!str) return [];
-      return str.split(',').map(s => s.trim()).filter(Boolean);
-    }
-
-    function addSingleWord() {
-      const space = document.getElementById('saveSpaceSelect').value;
-      const eng = document.getElementById('inputEng').value.trim();
-      const kor = document.getElementById('inputKor').value.trim();
-      const tags = parseCommaList(document.getElementById('inputTags').value);
-
-      if (!space || !eng || !kor) { showToast('공간, 영단어, 뜻을 입력해주세요.'); return; }
-
-      vocab.push({ id: newId(), eng, kor, space, tags, weight: 0, rweight: 0, review: false });
-      saveData();
-      document.getElementById('inputEng').value = '';
-      document.getElementById('inputKor').value = '';
-      document.getElementById('inputTags').value = '';
-      document.getElementById('inputEng').focus();
-      showToast('단어가 저장되었습니다.');
-    }
-
-    function addBatchWords() {
-      const space = document.getElementById('saveSpaceSelect').value;
-      const text = document.getElementById('inputBatch').value.trim();
-      const tags = parseCommaList(document.getElementById('inputBatchTags').value);
-
-      if (!space || !text) { showToast('공간 선택 및 단어를 입력해주세요.'); return; }
-
-      // 같은 공간에 영단어+뜻이 모두 같은 단어는 중복으로 처리 (뜻이 다른 다의어는 허용)
-      const keyOf = (eng, kor) => `${eng.toLowerCase()}\u0000${kor.toLowerCase()}`;
-      const existing = new Set(vocab.filter(v => v.space === space).map(v => keyOf(v.eng, v.kor)));
-
-      let count = 0, dup = 0, bad = 0;
-      text.split('\n').forEach(line => {
-        if (!line.trim()) return;
-        const parts = line.split(':');
-        const eng = parts[0].trim();
-        const kor = parts.slice(1).join(':').trim();
-        if (parts.length < 2 || !eng || !kor) { bad++; return; }
-
-        const key = keyOf(eng, kor);
-        if (existing.has(key)) { dup++; return; }
-        existing.add(key);
-
-        vocab.push({ id: newId(), eng, kor, space, tags: [...tags], weight: 0, rweight: 0, review: false });
-        count++;
-      });
-
-      if (count > 0) {
-        saveData();
-        document.getElementById('inputBatch').value = '';
-        document.getElementById('inputBatchTags').value = '';
-      }
-
-      const extra = [dup ? `중복 ${dup}개 제외` : '', bad ? `형식 오류 ${bad}줄` : ''].filter(Boolean).join(' · ');
-      if (count > 0) showToast(`${count}개 단어가 저장되었습니다.${extra ? ` (${extra})` : ''}`);
-      else showToast(extra ? `저장된 단어가 없습니다. (${extra})` : '저장할 단어가 없습니다.');
-    }
-
-    function renderFilterChips() {
-      if (listSpace && !spaces.includes(listSpace)) listSpace = '';
-      const row = document.getElementById('filterRow');
-      const prevScroll = row.scrollLeft;
-      row.innerHTML = '';
-
-      const addChip = (label, active, onClick) => {
-        const chip = document.createElement('div');
-        chip.className = 'filter-chip' + (active ? ' active' : '');
-        chip.textContent = label;
-        chip.onclick = () => { onClick(); renderFilterChips(); renderList(); };
-        row.appendChild(chip);
-      };
-
-      addChip('전체', !listSpace && !listReviewOnly, () => { listSpace = ''; listReviewOnly = false; });
-      addChip('복습만', listReviewOnly, () => { listReviewOnly = !listReviewOnly; });
-      sortNames(spaces).forEach(sp => {
-        addChip(sp, listSpace === sp, () => { listSpace = listSpace === sp ? '' : sp; });
-      });
-      row.scrollLeft = prevScroll;
-    }
-
-    function renderList() {
-      const query = document.getElementById('searchInput').value.toLowerCase().trim();
-      const vocabList = document.getElementById('vocabList');
-      vocabList.innerHTML = '';
-
-      const revCard = document.createElement('div');
-      revCard.className = 'folder-card';
-      revCard.onclick = openReviewModal;
-      revCard.innerHTML = `<div class="folder-card-title">🔖 복습이 필요한 단어</div><div class="folder-card-count">${vocab.filter(v => v.review).length}개</div>`;
-      vocabList.appendChild(revCard);
-      const dupCard = document.createElement('div');
-      dupCard.className = 'folder-card';
-      dupCard.onclick = openDupModal;
-      dupCard.innerHTML = `<div class="folder-card-title">🔁 중복 단어</div><div class="folder-card-count">${dupGroups().reduce((a, g) => a + g.length, 0)}개</div>`;
-      vocabList.appendChild(dupCard);
-
-      const filtered = vocab.filter(v =>
-        (!listReviewOnly || v.review) &&
-        (!listSpace || v.space === listSpace) &&
-        (
-          v.eng.toLowerCase().includes(query) ||
-          v.kor.toLowerCase().includes(query) ||
-          v.space.toLowerCase().includes(query) ||
-          v.tags.some(t => t.toLowerCase().includes(query))
-        )
-      ).sort((a,b) => a.eng.localeCompare(b.eng));
-
-      if (filtered.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'empty-msg';
-        empty.textContent = '검색 조건에 맞는 단어가 없습니다.';
-        vocabList.appendChild(empty);
-        return;
-      }
-
-      filtered.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'word-item';
-        div.onclick = () => openModal(item.id);
-        div.innerHTML = `
-          <div class="word-item-info">
-            <div class="word-item-eng">${escapeHtml(item.eng)}</div>
-            <div class="word-item-kor">${escapeHtml(item.kor)}</div>
-          </div>
-          <div class="word-item-meta">
-            ${item.review ? '<div class="word-review-badge">🔖 복습</div>' : ''}
-            <div class="word-space-badge">${escapeHtml(item.space)}</div>
-          </div>
-        `;
-        vocabList.appendChild(div);
-      });
-    }
-
-    function openReviewModal() {
-      const modalList = document.getElementById('reviewModalList');
-      modalList.innerHTML = '';
-      const words = vocab.filter(v => v.review);
-
-      words.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'word-item';
-        div.onclick = () => { closeReviewModal(); openModal(item.id); };
-        div.innerHTML = `<div class="word-item-info"><div class="word-item-eng">${escapeHtml(item.eng)}</div><div class="word-item-kor">${escapeHtml(item.kor)}</div></div>`;
-        modalList.appendChild(div);
-      });
-      document.getElementById('reviewListModal').classList.add('active');
-    }
-
-    function closeReviewModal() { document.getElementById('reviewListModal').classList.remove('active'); }
-
-    function openModal(id) {
-      editingId = id;
-      const item = vocab.find(v => v.id === id);
-      if (!item) return;
-
-      document.getElementById('editEng').value = item.eng;
-      document.getElementById('editKor').value = item.kor;
-      document.getElementById('editTags').value = (item.tags || []).join(', ');
-
-      const sel = document.getElementById('editWordSpaceSelect');
-      sel.innerHTML = '';
-      sortNames(spaces).forEach(sp => {
-        const opt = document.createElement('option');
-        opt.value = sp; opt.textContent = sp;
-        if (sp === item.space) opt.selected = true;
-        sel.appendChild(opt);
-      });
-
-      document.getElementById('editModal').classList.add('active');
-    }
-
-    function closeModal() {
-      document.getElementById('editModal').classList.remove('active');
-      editingId = null;
-    }
-
-    function saveEditWord() {
-      const item = vocab.find(v => v.id === editingId);
-      if (item) {
-        const newEng = document.getElementById('editEng').value.trim();
-        const newKor = document.getElementById('editKor').value.trim();
-        if (!newEng || !newKor) { showToast('영단어와 뜻을 입력해주세요.'); return; }
-        item.eng = newEng;
-        item.kor = newKor;
-        item.tags = parseCommaList(document.getElementById('editTags').value);
-        item.space = document.getElementById('editWordSpaceSelect').value;
-
-        saveData();
-        closeModal();
-        if (document.getElementById('sec-study-exec').classList.contains('active')) {
-          showStudyWord();
-        } else {
-          renderList();
-        }
-      }
-    }
-
-    async function deleteCurrentWord() {
-      if (await askConfirm('이 단어를 삭제하시겠습니까?', '삭제')) {
-        const delId = editingId;
-        vocab = vocab.filter(v => v.id !== delId);
-        saveData();
-        closeModal();
-        if (document.getElementById('sec-study-exec').classList.contains('active')) {
-          const removedUpToNow = studyHistory.filter((h, i) => i <= historyIndex && h.word.id === delId).length;
-          studyHistory = studyHistory.filter(h => h.word.id !== delId);
-          historyIndex -= removedUpToNow;
-          currentStudyWord = null;
-          nextStudyWord();
-        } else {
-          renderList();
-        }
-      }
-    }
-
-    function exportData() {
-      if (vocab.length === 0) { showToast('내보낼 데이터가 없습니다.'); return; }
-      const list = document.getElementById('exportSpaceList');
-      const names = sortNames(spaces);
-      if (vocab.some(v => !v.space)) names.push('');
-      list.innerHTML = names.map(n => `<label class="chk-row"><input type="checkbox" value="${escapeHtml(n)}" checked><span style="flex:1">${escapeHtml(n || '(공간 없음)')}</span><span style="font-size:0.8rem;color:var(--text-sub)">${vocab.filter(v => v.space === n).length}단어</span></label>`).join('');
-      document.getElementById('expTags').checked = false;
-      document.getElementById('expReview').checked = false;
-      document.getElementById('exportModal').classList.add('active');
-    }
-
-    function toggleAllExport() {
-      const cs = [...document.querySelectorAll('#exportSpaceList input')];
-      const all = cs.every(c => c.checked);
-      cs.forEach(c => c.checked = !all);
-    }
-
-    function doExport() {
-      const sel = [...document.querySelectorAll('#exportSpaceList input:checked')].map(c => c.value);
-      if (!sel.length) { showToast('내보낼 공간을 선택해주세요.'); return; }
-      const wt = document.getElementById('expTags').checked, wr = document.getElementById('expReview').checked;
-      const words = vocab.filter(v => sel.includes(v.space)).map(v => {
-        const o = { eng: v.eng, kor: v.kor, space: v.space };
-        if (wt) o.tags = v.tags;
-        if (wr) o.review = !!v.review;
-        return o;
-      });
-      const payload = { app: 'vocab-app', version: 2, exportedAt: new Date().toISOString(), spaces: sel.filter(Boolean), vocab: words };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const d = new Date();
-      const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-      const a = document.createElement('a');
-      a.href = url; a.download = `vocab-backup-${ymd}.json`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      document.getElementById('exportModal').classList.remove('active');
-      showToast(`공간 ${sel.filter(Boolean).length}개, 단어 ${words.length}개를 내보냈습니다.`);
-    }
-
-    function importData(e) {
-      const file = e.target.files && e.target.files[0];
-      e.target.value = '';
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onerror = () => showToast('파일을 읽지 못했습니다.');
-      reader.onload = () => {
-        try {
-          const data = JSON.parse(reader.result);
-          if (!data || !Array.isArray(data.vocab)) throw new Error('invalid');
-          const key = (sp, en, ko) => [sp, en, ko].map(x => x.trim().toLowerCase()).join('\u0000');
-          const idx = new Map(vocab.map(v => [key(v.space || '', v.eng, v.kor), v]));
-          let added = 0, upd = 0, same = 0;
-          (Array.isArray(data.spaces) ? data.spaces : []).forEach(sp => { if (typeof sp === 'string' && sp.trim() && !spaces.includes(sp.trim())) spaces.push(sp.trim()); });
-
-          data.vocab.forEach(v => {
-            if (!v || typeof v.eng !== 'string' || typeof v.kor !== 'string' || !v.eng.trim() || !v.kor.trim()) return;
-            const sp = typeof v.space === 'string' ? v.space.trim() : '', eng = v.eng.trim(), kor = v.kor.trim();
-            const hasTags = Array.isArray(v.tags), hasRev = 'review' in v;
-            const ex = idx.get(key(sp, eng, kor));
-            if (ex) { // 공간·영단어·뜻이 모두 같음 → 덮어쓰기
-              let ch = false;
-              if (hasTags) { const add = [...new Set(v.tags.map(String))].filter(x => !ex.tags.includes(x)); if (add.length) { ex.tags = ex.tags.concat(add); ch = true; } }
-              if (hasRev && v.review && !ex.review) { ex.review = true; ch = true; } // 복습 표시가 다르면 ON
-              ch ? upd++ : same++;
-            } else { // 뜻이나 공간이 다르면 일단 저장 (중복 단어 칸에서 정리)
-              if (sp && !spaces.includes(sp)) spaces.push(sp);
-              const w = { id: newId(), eng, kor, space: sp, tags: hasTags ? v.tags.map(String) : [], weight: 0, rweight: 0, review: hasRev && !!v.review };
-              vocab.push(w); idx.set(key(sp, eng, kor), w); added++;
-            }
-          });
-          saveData();
-          renderSpaceOptions();
-          showToast(`가져오기 완료: 새 단어 ${added} · 변경 ${upd} · 동일 ${same}` + (added ? ` (중복 확인: 저장 단어 확인 > 중복 단어)` : ''));
-        } catch (err) {
-          showToast('올바른 백업 파일이 아닙니다.');
-        }
-      };
-      reader.readAsText(file);
-    }
-
-    function dupGroups() {
-      const m = new Map();
-      vocab.forEach(v => { const k = v.eng.trim().toLowerCase(); if (!m.has(k)) m.set(k, []); m.get(k).push(v); });
-      return [...m.values()].filter(g => g.length > 1).sort((a, b) => a[0].eng.localeCompare(b[0].eng));
-    }
-
-    function openDupModal() {
-      const box = document.getElementById('dupList');
-      const gs = dupGroups();
-      box.innerHTML = gs.length ? '' : '<div class="empty-msg">중복 단어가 없습니다.</div>';
-      gs.forEach(g => {
-        const d = document.createElement('div');
-        d.className = 'dup-group';
-        d.innerHTML = `<div class="dup-eng">${escapeHtml(g[0].eng)}</div>` + g.map(w => `<label class="chk-row"><input type="checkbox" value="${escapeHtml(String(w.id))}"><span style="flex:1">${escapeHtml(w.kor)}</span>${w.review ? '<span class="word-review-badge">🔖</span>' : ''}<span class="word-space-badge">${escapeHtml(w.space || '공간 없음')}</span></label>`).join('');
-        box.appendChild(d);
-      });
-      document.getElementById('dupModal').classList.add('active');
-      dupUpdate();
-    }
-
-    let dupTimer = null;
-    function dupUpdate() { // 선택이 바뀌면 삭제 확인 상태를 풀고 개수를 표시
-      clearTimeout(dupTimer);
-      const btn = document.getElementById('dupDelBtn');
-      delete btn.dataset.armed;
-      const n = document.querySelectorAll('#dupList input:checked').length;
-      btn.textContent = n ? `선택 삭제 (${n})` : '선택 삭제';
-    }
-
-    function dupSelectAll() {
-      const cs = [...document.querySelectorAll('#dupList input')];
-      const all = cs.length && cs.every(c => c.checked);
-      cs.forEach(c => c.checked = !all);
-      dupUpdate();
-    }
-
-    function dupKeepOne() {
-      document.querySelectorAll('#dupList .dup-group').forEach(g => g.querySelectorAll('input').forEach((c, i) => c.checked = i > 0));
-      dupUpdate();
-      const n = document.querySelectorAll('#dupList input:checked').length;
-      showToast(n ? `${n}개를 선택했어요. 아래 '선택 삭제'를 눌러야 지워집니다.` : '정리할 중복이 없습니다.');
-    }
-
-    function dupDelete() { // 브라우저 확인창 대신, 버튼을 두 번 눌러 삭제
-      try {
-        const ids = new Set([...document.querySelectorAll('#dupList input:checked')].map(c => c.value));
-        if (!ids.size) { showToast('삭제할 단어를 먼저 체크해주세요.'); return; }
-        const btn = document.getElementById('dupDelBtn');
-        if (!btn.dataset.armed) {
-          btn.dataset.armed = '1';
-          btn.textContent = `한 번 더 누르면 ${ids.size}개 삭제`;
-          clearTimeout(dupTimer);
-          dupTimer = setTimeout(dupUpdate, 4000);
-          return;
-        }
-        vocab = vocab.filter(v => !ids.has(String(v.id)));
-        saveData();
-        document.getElementById('dupModal').classList.remove('active');
-        renderList();
-        showToast(`${ids.size}개 단어를 삭제했습니다.`);
-      } catch (err) {
-        showToast('삭제 중 오류가 발생했습니다: ' + err.message);
-      }
-    }
-
-    function escapeHtml(str) {
-      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    init();
-  </script>
-</body>
-</html>
+    if (S.kind === 'select') {
+      if (st.entries.length >= st.order.length) { fin
