@@ -914,7 +914,7 @@
     const pool = buildPoolIds(ls.mode, ids);
     if (!pool.length) return null;
     const st = ls.temp ? ls.state : spaceById(ids[0]).progress;
-    const poolSet = new Set(당구);
+    const poolSet = new Set(pool);
     const done = st ? st.entries.filter(e => e.rv && poolSet.has(e.id)).length : 0;
     const pct = Math.min(100, Math.round(done / pool.length * 100));
     const label = ls.mode === 'review' ? '복습 단어만' : ids.length > 1 ? '여러 공간' : '선택 학습';
@@ -1285,4 +1285,630 @@
       return;
     }
     if (S.kind === 'select') {
-      if (st.entries.length >= st.order.length) { fin
+      if (st.entries.length >= st.order.length) { finishRound(); return; }
+      st.entries.push(newEntry(st.order[st.entries.length]));
+    } else {
+      const id = drawRandomId();
+      if (!id) { exitStudy(); return; }
+      st.entries.push(newEntry(id));
+    }
+    st.cur = st.entries.length - 1;
+    // 다다음 단어로 넘어가 되돌아갈 수 없게 된 단어의 복습 판정 확정
+    finalizeEntry(st, st.entries[st.entries.length - 3]);
+    if (S.kind === 'random' && st.entries.length > 3) {
+      st.entries.shift();
+      st.cur--;
+      st.floor = Math.max(0, st.floor - 1);
+    }
+    saveDB();
+    renderStudy();
+  }
+
+  function finishRound() {
+    const st = S.st;
+    st.entries.forEach(e => finalizeEntry(st, e));
+    saveDB();
+    const doneRound = st.round;
+    const list = sortWords(st.reviewed.map(wordById).filter(Boolean));
+    const proceed = () => {
+      if (!S) return;
+      const pool = buildPoolIds(S.mode, S.spaceIds);
+      if (!pool.length) { showToast('학습할 단어가 없어요.'); exitStudy(); return; }
+      S.st = newRoundState(doneRound + 1, pool, st.order[st.order.length - 1]);
+      bindState();
+      saveDB();
+      renderStudy();
+      showToast(`${doneRound}회독 완료! ${doneRound + 1}회독을 시작해요.`);
+    };
+    if (list.length) showWordListModal(`${doneRound}회독 복습 단어`, list, proceed, '다음 회독 시작');
+    else proceed();
+  }
+
+  function exitStudy() {
+    if (!S) { navTo('home'); return; }
+    closeInlineEdit();
+    const st = S.st;
+    st.entries.forEach(e => finalizeEntry(st, e));   // 학습 종료 시 공개된 단어의 판정 확정
+    saveDB();
+    if (S.kind === 'random') {
+      const list = sortWords(st.reviewed.map(wordById).filter(Boolean));
+      S = null;
+      if (list.length) showWordListModal('이번 학습의 복습 단어', list, () => navTo('home'), '확인');
+      else navTo('home');
+      return;
+    }
+    const origin = S.origin;
+    S = null;
+    navTo(origin);
+  }
+
+  function tapRight() {
+    const e = curEntry();
+    if (!e) return;
+    if (!e.rv) revealCurrent(); else goNext();
+  }
+
+  $('studyArea').addEventListener('click', ev => {
+    if (!S || S.editing) return;
+    if (ev.target.closest('.no-tap')) return;          // 버튼·토글·수정창 터치는 화면 넘김과 분리
+    const rect = ev.currentTarget.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+    if (x < rect.width * PREV_ZONE_RATIO && canGoPrev()) { goPrev(); return; }
+    tapRight();                                        // 이전 단어가 없으면 왼쪽도 오른쪽과 동일
+  });
+
+  document.addEventListener('keydown', ev => {
+    if (currentSec !== 'study-exec' || !S || S.editing || modalStack.length) return;
+    if (ev.target.closest && ev.target.closest('input, textarea, select, button')) return;
+    if (ev.key === 'ArrowLeft') { ev.preventDefault(); if (canGoPrev()) goPrev(); }
+    else if (ev.key === 'ArrowRight' || ev.key === ' ' || ev.key === 'Enter') { ev.preventDefault(); tapRight(); }
+  });
+
+  $('btnReview').addEventListener('click', ev => {
+    ev.currentTarget.blur();                 // 포커스가 남으면 스페이스/엔터 키가 버튼을 다시 누름
+    const e = curEntry();
+    if (!e || !e.rv) return;
+    if (e.fin) { showToast('이미 반영된 단어라 바꿀 수 없어요.'); return; }
+    e.mk = !e.mk;
+    saveDB();
+    renderStudy();
+  });
+
+  /* ---------- 학습 화면 렌더 ---------- */
+  function renderMeanings(el, meanings) {
+    el.innerHTML = meanings.map((m, i) => `<span class="m">${escapeHtml(m)}${i < meanings.length - 1 ? ';' : ''}</span>`).join(' ');
+    const len = meanings.join('; ').length;
+    el.style.fontSize = len > 80 ? '1.05rem' : len > 40 ? '1.3rem' : '';
+  }
+
+  function renderStudy() {
+    if (!S) return;
+    const e = curEntry();
+    const w = e && wordById(e.id);
+    const revealParts = [$('revealBox'), $('btnReview'), $('btnEditInStudy')];
+    if (!w) {
+      $('studyWord').textContent = '단어가 없어요';
+      revealParts.forEach(el => el.classList.remove('visible'));
+      $('studyHint').textContent = '';
+      return;
+    }
+
+    const wordEl = $('studyWord');
+    wordEl.textContent = w.word;
+    wordEl.style.fontSize = w.word.length > 24 ? '1.6rem' : w.word.length > 14 ? '2rem' : '';
+    renderMeanings($('studyMeaning'), w.meanings);
+    $('studyMemo').textContent = w.memo || '';
+    $('studyTagState').textContent = w.reviewTag ? '🔖 복습 단어' : '';
+
+    revealParts.forEach(el => el.classList.toggle('visible', e.rv));
+    $('btnReview').classList.toggle('active', e.mk);
+    $('btnReview').classList.toggle('locked', e.fin);
+    $('btnReview').setAttribute('aria-pressed', String(e.mk));
+
+    if (S.kind === 'select') {
+      const st = S.st;
+      const total = st.order.length;
+      const done = st.entries.reduce((a, x) => a + (x.rv ? 1 : 0), 0);
+      const pct = total ? Math.min(100, Math.round(done / total * 100)) : 0;
+      $('topSelect').style.display = '';
+      $('topRandom').style.display = 'none';
+      $('studyBar').style.width = pct + '%';
+      $('studyStat').textContent = `${pct}% · ${st.round}회독`;
+      $('studySpaceText').textContent = spaceName(w.spaceId);
+      $('studyNote').textContent = S.mode === 'review' ? '복습 단어만 · 임시 진행' : S.temp ? '여러 공간 · 임시 진행' : `${done} / ${total}`;
+    } else {
+      $('topSelect').style.display = 'none';
+      $('topRandom').style.display = '';
+      $('randomSpaceText').textContent = spaceName(w.spaceId);
+      $('randomCountText').textContent = `학습 ${S.st.count}`;
+    }
+
+    const hasPrev = canGoPrev();
+    const isRoundEnd = S.kind === 'select' && e.rv && S.st.cur === S.st.entries.length - 1 && S.st.entries.length >= S.st.order.length;
+    // 수정·복습 버튼 사이에 들어가도록 짧게, 최대 두 줄
+    const action = !e.rv ? '뜻 공개' : isRoundEnd ? '회독 마무리' : '다음 단어';
+    $('studyHint').textContent = hasPrev ? `왼쪽: 이전 단어\n오른쪽: ${action}` : `터치 시 ${action}`;
+  }
+
+  /* ---------- 학습 중 인라인 수정 ---------- */
+  function openInlineEdit() {
+    const e = curEntry();
+    const w = e && wordById(e.id);
+    if (!w) return;
+    S.editing = true;
+    $('ieWord').value = w.word;
+    $('ieMeaning').value = w.meanings.join('; ');
+    $('ieMemo').value = w.memo;
+    $('inlineEdit').classList.add('active');
+    $('studyArea').classList.add('editing');
+  }
+  function closeInlineEdit() {
+    if (S) S.editing = false;
+    $('inlineEdit').classList.remove('active');
+    $('studyArea').classList.remove('editing');
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }
+  function saveInlineEdit() {
+    const e = curEntry();
+    const w = e && wordById(e.id);
+    if (!w) { closeInlineEdit(); return; }
+    const word = $('ieWord').value.trim();
+    const meanings = parseMeanings($('ieMeaning').value);
+    if (!word || !meanings.length) { showToast('영단어와 뜻을 입력해주세요.'); return; }
+    w.word = word;
+    w.meanings = meanings;
+    w.memo = $('ieMemo').value.trim();
+    saveDB();
+    closeInlineEdit();
+    renderStudy();
+    showToast('수정했어요.');
+  }
+  $('btnEditInStudy').addEventListener('click', ev => { ev.currentTarget.blur(); openInlineEdit(); });
+  $('ieCancel').addEventListener('click', closeInlineEdit);
+  $('ieSave').addEventListener('click', saveInlineEdit);
+  onEnter($('ieWord'), () => $('ieMeaning').focus());
+  onEnter($('ieMeaning'), saveInlineEdit);
+
+  /* =========================================================
+     단어 저장
+     ========================================================= */
+  function renderAddSpaces() {
+    const sel = $('saveSpaceSelect');
+    const list = sortSpaces(db.spaces);
+    sel.innerHTML = `<option value="">${list.length ? '공간을 선택하세요' : '아래에 새 공간 이름을 입력하세요'}</option>` +
+      list.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+    sel.value = db.settings.lastSpaceId && spaceById(db.settings.lastSpaceId) ? db.settings.lastSpaceId : '';
+  }
+  function selectSaveSpace(id) {
+    db.settings.lastSpaceId = id || null;
+    saveDB();
+  }
+  $('saveSpaceSelect').addEventListener('change', e => selectSaveSpace(e.target.value));
+
+  function quickCreateSpace() {
+    const r = createSpace($('quickSpaceName').value);
+    if (!r) return;
+    selectSaveSpace(r.space.id);
+    renderAddSpaces();
+    $('quickSpaceName').value = '';
+    showToast(r.existed ? `이미 있는 '${r.space.name}' 공간을 선택했어요.` : `'${r.space.name}' 공간을 만들고 선택했어요.`);
+    $('inputEng').focus();
+  }
+  $('btnQuickSpace').addEventListener('click', quickCreateSpace);
+  onEnter($('quickSpaceName'), quickCreateSpace);
+
+  function addSingleWord() {
+    const spaceId = $('saveSpaceSelect').value;
+    const word = $('inputEng').value.trim();
+    const meanings = parseMeanings($('inputMeaning').value);
+    const memo = $('inputMemo').value.trim();
+    if (!spaceId) { showToast('공간을 먼저 선택하거나 만들어주세요.'); $('quickSpaceName').focus(); return; }
+    if (!word || !meanings.length) { showToast('영단어와 뜻을 입력해주세요.'); (word ? $('inputMeaning') : $('inputEng')).focus(); return; }
+    if (isExactDup(spaceId, word, meanings)) { showToast('이 공간에 같은 단어와 뜻이 이미 있어요.'); return; }
+    db.words.push({ id: newId(), spaceId, word, meanings, memo, reviewTag: false, reviewPriority: 1 });
+    saveDB();
+    $('inputEng').value = '';
+    $('inputMeaning').value = '';
+    $('inputMemo').value = '';
+    $('inputEng').focus();
+    showToast(`'${word}' 저장했어요.`);
+  }
+  $('btnAddWord').addEventListener('click', addSingleWord);
+  onEnter($('inputEng'), () => $('inputMeaning').focus());
+  onEnter($('inputMeaning'), addSingleWord);
+  onEnter($('inputMemo'), addSingleWord);
+
+  $('batchToggle').addEventListener('click', () => {
+    const open = $('batchContent').classList.toggle('open');
+    $('batchToggle').classList.toggle('open', open);
+  });
+
+  function addBatchWords() {
+    const spaceId = $('saveSpaceSelect').value;
+    const text = $('inputBatch').value;
+    if (!spaceId) { showToast('공간을 먼저 선택하거나 만들어주세요.'); return; }
+    if (!text.trim()) { showToast('저장할 단어를 입력해주세요.'); return; }
+    const existing = new Set(db.words.filter(w => w.spaceId === spaceId).map(w => wordKey(w.word) + '\u0000' + meaningsKey(w.meanings)));
+    let count = 0, dup = 0;
+    const badLines = [];
+    text.split(/\r?\n/).forEach(line => {
+      if (!line.trim()) return;
+      const m = line.match(/^([^:：]*)[:：](.*)$/);          // 첫 번째 콜론 기준으로 분리
+      const word = m ? m[1].trim() : '';
+      const meanings = m ? parseMeanings(m[2]) : [];
+      if (!word || !meanings.length) { badLines.push(line); return; }
+      const key = wordKey(word) + '\u0000' + meaningsKey(meanings);
+      if (existing.has(key)) { dup++; return; }
+      existing.add(key);
+      db.words.push({ id: newId(), spaceId, word, meanings, memo: '', reviewTag: false, reviewPriority: 1 });
+      count++;
+    });
+    if (count) saveDB();
+    $('inputBatch').value = badLines.join('\n');               // 형식 오류 줄만 남겨 바로 고칠 수 있게
+    const extra = [dup ? `중복 ${dup}개 제외` : '', badLines.length ? `형식 오류 ${badLines.length}줄` : ''].filter(Boolean).join(' · ');
+    if (count) showToast(`${count}개 저장했어요.${extra ? ` (${extra})` : ''}`);
+    else showToast(extra ? `저장된 단어가 없어요. (${extra})` : '저장할 단어가 없어요.');
+  }
+  $('btnAddBatch').addEventListener('click', addBatchWords);
+
+  /* ---------- 내보내기 ---------- */
+  $('btnExport').addEventListener('click', () => {
+    if (!db.words.length) { showToast('내보낼 단어가 없어요.'); return; }
+    const counts = spaceStatsMap();
+    $('exportSpaceList').innerHTML = sortSpaces(db.spaces).map(s => `
+      <label class="chk-row"><input type="checkbox" value="${escapeHtml(s.id)}" checked>
+        <span style="flex:1">${escapeHtml(s.name)}</span>
+        <span style="font-size:0.8rem;color:var(--text-sub)">${counts.get(s.id).total}단어</span>
+      </label>`).join('');
+    $('expAll').checked = true;
+    $('expReview').checked = false;
+    openModal('exportModal');
+  });
+  $('expAll').addEventListener('change', e => {
+    document.querySelectorAll('#exportSpaceList input').forEach(c => { c.checked = e.target.checked; });
+  });
+  $('exportSpaceList').addEventListener('change', () => {
+    const cs = [...document.querySelectorAll('#exportSpaceList input')];
+    $('expAll').checked = cs.length > 0 && cs.every(c => c.checked);
+  });
+  $('exportCancel').addEventListener('click', () => closeModal('exportModal'));
+  $('exportDo').addEventListener('click', () => {
+    const ids = new Set([...document.querySelectorAll('#exportSpaceList input:checked')].map(c => c.value));
+    if (!ids.size) { showToast('내보낼 공간을 선택해주세요.'); return; }
+    const withReview = $('expReview').checked;
+    const spaces = db.spaces.filter(s => ids.has(s.id)).map(s => ({ id: s.id, name: s.name }));
+    const words = db.words.filter(w => ids.has(w.spaceId)).map(w => {
+      const o = { id: w.id, spaceId: w.spaceId, word: w.word, meanings: w.meanings, memo: w.memo };
+      if (withReview) { o.reviewTag = w.reviewTag; o.reviewPriority = w.reviewPriority; }
+      return o;
+    });
+    const payload = { app: 'vocab-app', version: 3, exportedAt: new Date().toISOString(), spaces, words };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const d = new Date();
+    const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vocab-backup-${ymd}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    closeModal('exportModal');
+    showToast(`공간 ${spaces.length}개, 단어 ${words.length}개를 내보냈어요.`);
+  });
+
+  /* ---------- 가져오기 (현재 형식 + 프로토타입 형식 자동 인식) ---------- */
+  $('btnImport').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onerror = () => showToast('파일을 읽지 못했어요.');
+    reader.onload = () => {
+      let r = null;
+      try {
+        const data = JSON.parse(reader.result);
+        if (data && Array.isArray(data.words) && Array.isArray(data.spaces)) r = importV3(data);
+        else if (data && Array.isArray(data.vocab)) r = importLegacy(data);
+      } catch (err) { r = null; }
+      if (!r) { showToast('단어장 백업 파일이 아니에요. 내보내기로 만든 .json 파일을 선택해주세요.'); return; }
+      saveDB();
+      renderAddSpaces();
+      const parts = [`새 단어 ${r.added}`, `갱신 ${r.updated}`];
+      if (r.same) parts.push(`동일 ${r.same}`);
+      if (r.skipped) parts.push(`건너뜀 ${r.skipped}`);
+      showToast(`가져오기 완료: ${parts.join(' · ')}`);
+    };
+    reader.readAsText(file);
+  });
+
+  // 현재 형식: ID가 같은 공간·단어는 덮어쓰기, 없는 ID는 새로 추가
+  function importV3(data) {
+    const idMap = new Map();
+    data.spaces.forEach(s => {
+      if (!s || s.id == null || typeof s.name !== 'string' || !s.name.trim()) return;
+      const sid = String(s.id), name = s.name.trim();
+      const ex = spaceById(sid);
+      if (ex) { if (ex.name !== name) ex.name = uniqueSpaceName(name, ex.id); idMap.set(sid, ex.id); }
+      else {
+        const ns = { id: sid, name: uniqueSpaceName(name), progress: null };
+        db.spaces.push(ns);
+        idMap.set(sid, ns.id);
+      }
+    });
+    let added = 0, updated = 0, skipped = 0;
+    data.words.forEach(v => {
+      if (!v || typeof v.word !== 'string' || !v.word.trim()) { skipped++; return; }
+      const meanings = Array.isArray(v.meanings) ? v.meanings.map(String).map(x => x.trim()).filter(Boolean) : parseMeanings(v.meanings);
+      if (!meanings.length) { skipped++; return; }
+      const rawSid = v.spaceId == null ? '' : String(v.spaceId);
+      const spaceId = idMap.get(rawSid) || (spaceById(rawSid) ? rawSid : getOrCreateSpaceByName(IMPORT_FALLBACK_SPACE).id);
+      const ex = v.id != null ? wordById(String(v.id)) : null;
+      if (ex) {
+        ex.word = v.word.trim();
+        ex.meanings = meanings;
+        ex.spaceId = spaceId;
+        if (typeof v.memo === 'string') ex.memo = v.memo;
+        // 파일에 없는 필드(복습 태그 등)는 기존 값을 유지
+        if ('reviewTag' in v) ex.reviewTag = !!v.reviewTag;
+        if ('reviewPriority' in v) ex.reviewPriority = clampPriority(v.reviewPriority);
+        if (!ex.reviewTag) ex.reviewPriority = 1;
+        updated++;
+      } else {
+        const tag = !!v.reviewTag;
+        db.words.push({
+          id: v.id != null ? String(v.id) : newId(), spaceId, word: v.word.trim(), meanings,
+          memo: typeof v.memo === 'string' ? v.memo : '', reviewTag: tag, reviewPriority: tag ? clampPriority(v.reviewPriority) : 1
+        });
+        added++;
+      }
+    });
+    return { added, updated, same: 0, skipped };
+  }
+
+  // 프로토타입 형식: 공간 이름으로 분류, 뜻은 ; 기준 배열로, 태그는 메모로 옮김
+  function importLegacy(data) {
+    (Array.isArray(data.spaces) ? data.spaces : []).forEach(n => { if (typeof n === 'string' && n.trim()) getOrCreateSpaceByName(n.trim()); });
+    let added = 0, updated = 0, same = 0, skipped = 0;
+    data.vocab.forEach(v => {
+      if (!v || typeof v.eng !== 'string' || typeof v.kor !== 'string') { skipped++; return; }
+      const word = v.eng.trim(), meanings = parseMeanings(v.kor);
+      if (!word || !meanings.length) { skipped++; return; }
+      const sp = getOrCreateSpaceByName((typeof v.space === 'string' && v.space.trim()) || IMPORT_FALLBACK_SPACE);
+      const tagMemo = Array.isArray(v.tags) ? v.tags.map(String).map(t => t.trim()).filter(Boolean).join(', ') : '';
+      const wk = wordKey(word), mk = meaningsKey(meanings);
+      const ex = db.words.find(w => w.spaceId === sp.id && wordKey(w.word) === wk && meaningsKey(w.meanings) === mk);
+      if (ex) {
+        let changed = false;
+        if (v.review && !ex.reviewTag) { ex.reviewTag = true; ex.reviewPriority = 1; changed = true; }
+        if (tagMemo && !ex.memo.includes(tagMemo)) { ex.memo = ex.memo ? `${ex.memo}\n${tagMemo}` : tagMemo; changed = true; }
+        changed ? updated++ : same++;
+      } else {
+        db.words.push({ id: newId(), spaceId: sp.id, word, meanings, memo: tagMemo, reviewTag: !!v.review, reviewPriority: 1 });
+        added++;
+      }
+    });
+    return { added, updated, same, skipped };
+  }
+
+  /* =========================================================
+     단어 확인
+     ========================================================= */
+  let listPage = 1, listReviewOnly = false, listSpaceId = '';
+
+  function renderListTools() {
+    if (listSpaceId && !spaceById(listSpaceId)) listSpaceId = '';
+    const sel = $('listSpaceFilter');
+    sel.innerHTML = '<option value="">전체 공간</option>' + sortSpaces(db.spaces).map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+    sel.value = listSpaceId;
+    const rev = db.words.filter(w => w.reviewTag).length;
+    $('btnReviewFilter').textContent = `🔖 복습 ${rev}`;
+    $('btnReviewFilter').classList.toggle('active', listReviewOnly);
+    $('btnDup').textContent = `🔁 중복 ${dupGroups().reduce((a, g) => a + g.length, 0)}`;
+  }
+
+  function renderList() {
+    renderListTools();
+    const q = $('searchInput').value.trim().toLowerCase();
+    const items = sortWords(db.words.filter(w =>
+      (!listReviewOnly || w.reviewTag) &&
+      (!listSpaceId || w.spaceId === listSpaceId) &&
+      (!q || w.word.toLowerCase().includes(q) || w.meanings.some(m => m.toLowerCase().includes(q)))
+    ));
+    const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    listPage = Math.min(Math.max(1, listPage), pages);
+    $('pageText').textContent = `${listPage} / ${pages}`;
+    $('pagePrev').disabled = listPage <= 1;
+    $('pageNext').disabled = listPage >= pages;
+
+    const box = $('vocabList');
+    if (!items.length) {
+      box.innerHTML = `<div class="empty-msg">${db.words.length ? '조건에 맞는 단어가 없어요.' : '저장한 단어가 없어요.<br>단어 저장에서 첫 단어를 추가해보세요.'}</div>`;
+      return;
+    }
+    const pageItems = items.slice((listPage - 1) * PAGE_SIZE, listPage * PAGE_SIZE);
+    box.innerHTML = `<div class="list-count">${items.length}개 단어</div>` + pageItems.map(w => `
+      <div class="word-item" data-id="${escapeHtml(w.id)}">
+        <div class="word-item-info">
+          <div class="word-item-eng">${escapeHtml(w.word)}</div>
+          <div class="word-item-kor">${escapeHtml(w.meanings.join('; '))}</div>
+          ${w.memo ? `<div class="word-item-memo">📝 ${escapeHtml(w.memo.split('\n')[0])}</div>` : ''}
+        </div>
+        <div class="word-item-meta">
+          ${w.reviewTag ? '<div class="word-review-badge">🔖 복습</div>' : ''}
+          <div class="word-space-badge">${escapeHtml(spaceName(w.spaceId))}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  $('vocabList').addEventListener('click', e => {
+    const item = e.target.closest('.word-item[data-id]');
+    if (item) openWordEditor(item.dataset.id);
+  });
+  $('searchInput').addEventListener('input', () => { listPage = 1; renderList(); });
+  $('listSpaceFilter').addEventListener('change', e => { listSpaceId = e.target.value; listPage = 1; renderList(); });
+  $('btnReviewFilter').addEventListener('click', () => { listReviewOnly = !listReviewOnly; listPage = 1; renderList(); });
+  $('pagePrev').addEventListener('click', () => { listPage--; renderList(); $('listScroll').scrollTop = 0; });
+  $('pageNext').addEventListener('click', () => { listPage++; renderList(); $('listScroll').scrollTop = 0; });
+
+  /* ---------- 단어 수정 모달 ---------- */
+  let editingId = null;
+  function openWordEditor(id) {
+    const w = wordById(id);
+    if (!w) return;
+    editingId = id;
+    $('editWord').value = w.word;
+    $('editMeaning').value = w.meanings.join('; ');
+    $('editMemo').value = w.memo;
+    $('editSpace').innerHTML = sortSpaces(db.spaces).map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');
+    $('editSpace').value = w.spaceId;
+    // 복습 태그는 수정 화면에서 해제만 가능
+    $('editReviewRow').style.display = w.reviewTag ? '' : 'none';
+    $('editReview').checked = w.reviewTag;
+    $('editReviewSub').textContent = '끄면 복습 태그가 해제돼요.';
+    openModal('editModal', closeWordEditor);
+  }
+  function closeWordEditor() { closeModal('editModal'); editingId = null; }
+  $('editCancel').addEventListener('click', closeWordEditor);
+  $('editSave').addEventListener('click', () => {
+    const w = wordById(editingId);
+    if (!w) { closeWordEditor(); return; }
+    const word = $('editWord').value.trim();
+    const meanings = parseMeanings($('editMeaning').value);
+    if (!word || !meanings.length) { showToast('영단어와 뜻을 입력해주세요.'); return; }
+    w.word = word;
+    w.meanings = meanings;
+    w.memo = $('editMemo').value.trim();
+    w.spaceId = $('editSpace').value || w.spaceId;
+    if (w.reviewTag && !$('editReview').checked) { w.reviewTag = false; w.reviewPriority = 1; }
+    saveDB();
+    closeWordEditor();
+    renderList();
+    showToast('수정했어요.');
+  });
+  $('editDelete').addEventListener('click', async () => {
+    const id = editingId;
+    const w = wordById(id);
+    if (!w) return;
+    if (!(await askConfirm(`'${w.word}'을(를) 삭제할까요?`, '삭제'))) return;
+    db.words = db.words.filter(x => x.id !== id);
+    saveDB();
+    closeWordEditor();
+    renderList();
+    showToast('삭제했어요.');
+  });
+
+  /* ---------- 중복 정리 ---------- */
+  function dupGroups() {
+    const m = new Map();
+    db.words.forEach(w => {
+      const k = wordKey(w.word);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(w);
+    });
+    return [...m.values()].filter(g => g.length > 1).sort((a, b) => byWord(a[0], b[0]));
+  }
+  // 남길 단어 우선순위: 복습 태그 > 중요도 > 뜻 개수 > 메모 길이
+  function bestOf(group) {
+    return [...group].sort((a, b) =>
+      (b.reviewTag - a.reviewTag) || (b.reviewPriority - a.reviewPriority) ||
+      (b.meanings.length - a.meanings.length) || (b.memo.length - a.memo.length))[0];
+  }
+
+  function renderDupModal() {
+    const gs = dupGroups();
+    const box = $('dupList');
+    if (!gs.length) { box.innerHTML = '<div class="empty-msg">중복 단어가 없어요.</div>'; updateDupButton(); return; }
+    box.innerHTML = gs.map(g => `
+      <div class="dup-group">
+        <div class="dup-head">
+          <span class="dup-eng">${escapeHtml(g[0].word)}</span>
+          <button class="btn-mini" data-merge="${escapeHtml(wordKey(g[0].word))}">합치기</button>
+        </div>
+        ${sortWords(g).map(w => `
+          <label class="chk-row">
+            <input type="checkbox" value="${escapeHtml(w.id)}">
+            <span class="dup-body">
+              <span>${escapeHtml(w.meanings.join('; '))}</span>
+              ${w.memo ? `<small>📝 ${escapeHtml(w.memo.split('\n')[0])}</small>` : ''}
+            </span>
+            ${w.reviewTag ? '<span class="word-review-badge">🔖</span>' : ''}
+            <span class="word-space-badge">${escapeHtml(spaceName(w.spaceId))}</span>
+          </label>`).join('')}
+      </div>`).join('');
+    updateDupButton();
+  }
+  function updateDupButton() {
+    const n = document.querySelectorAll('#dupList input:checked').length;
+    $('dupDelete').textContent = n ? `선택 삭제 (${n})` : '선택 삭제';
+  }
+  $('btnDup').addEventListener('click', () => { renderDupModal(); openModal('dupModal'); });
+  $('dupClose').addEventListener('click', () => closeModal('dupModal'));
+  $('dupList').addEventListener('change', updateDupButton);
+  $('dupSelectAll').addEventListener('click', () => {
+    const cs = [...document.querySelectorAll('#dupList input')];
+    const all = cs.length && cs.every(c => c.checked);
+    cs.forEach(c => { c.checked = !all; });
+    updateDupButton();
+  });
+  $('dupKeepOne').addEventListener('click', () => {
+    const keep = new Set(dupGroups().map(g => bestOf(g).id));
+    document.querySelectorAll('#dupList input').forEach(c => { c.checked = !keep.has(c.value); });
+    updateDupButton();
+    const n = document.querySelectorAll('#dupList input:checked').length;
+    showToast(n ? `복습 태그·뜻이 많은 단어를 남기고 ${n}개를 골랐어요. '선택 삭제'를 눌러야 지워져요.` : '정리할 중복이 없어요.');
+  });
+  $('dupDelete').addEventListener('click', async () => {
+    const ids = new Set([...document.querySelectorAll('#dupList input:checked')].map(c => c.value));
+    if (!ids.size) { showToast('삭제할 단어를 먼저 체크해주세요.'); return; }
+    if (!(await askConfirm(`선택한 단어 ${ids.size}개를 삭제할까요?`, '삭제'))) return;
+    db.words = db.words.filter(w => !ids.has(w.id));
+    saveDB();
+    renderDupModal();
+    renderList();
+    showToast(`${ids.size}개 단어를 삭제했어요.`);
+  });
+  $('dupList').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-merge]');
+    if (!btn) return;
+    e.preventDefault();
+    const group = dupGroups().find(g => wordKey(g[0].word) === btn.dataset.merge);
+    if (!group) return;
+    const keep = bestOf(group);
+    const ok = await askConfirm(`'${keep.word}' ${group.length}개를 하나로 합칠까요?\n뜻과 메모는 모두 모이고, 공간은 '${spaceName(keep.spaceId)}'로 남아요.`, '합치기');
+    if (!ok) return;
+    const seen = new Set();
+    const meanings = [];
+    const memos = [];
+    [keep, ...group.filter(w => w !== keep)].forEach(w => {
+      w.meanings.forEach(m => { const k = m.toLowerCase(); if (!seen.has(k)) { seen.add(k); meanings.push(m); } });
+      if (w.memo && !memos.includes(w.memo)) memos.push(w.memo);
+    });
+    const tagged = group.filter(w => w.reviewTag);
+    keep.meanings = meanings;
+    keep.memo = memos.join('\n');
+    keep.reviewTag = tagged.length > 0;
+    keep.reviewPriority = tagged.length ? Math.max(...tagged.map(w => w.reviewPriority)) : 1;
+    const drop = new Set(group.filter(w => w !== keep).map(w => w.id));
+    db.words = db.words.filter(w => !drop.has(w.id));
+    saveDB();
+    renderDupModal();
+    renderList();
+    showToast(`'${keep.word}'을(를) 하나로 합쳤어요.`);
+  });
+
+  /* =========================================================
+     시작
+     ========================================================= */
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+  saveDB();          // 정리된 데이터 구조로 한 번 저장
+  renderHome();
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
+  }
+  </script>
+</body>
+</html>
